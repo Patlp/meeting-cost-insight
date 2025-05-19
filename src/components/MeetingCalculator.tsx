@@ -98,7 +98,7 @@ const MeetingCalculator: React.FC = () => {
                   onClick={handleSave}
                   disabled={saving}
                   className="w-full flex items-center justify-center gap-2"
-                  variant="primary"
+                  variant="default"
                 >
                   <Save className="h-4 w-4" />
                   {saving ? "Saving..." : "Save Meeting to History"}
