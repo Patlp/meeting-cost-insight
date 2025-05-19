@@ -102,14 +102,14 @@ const MeetingForm: React.FC<MeetingFormProps> = ({ onCalculate, loading = false 
         <div>
           <Label htmlFor="worthIt">Was this meeting worth it?</Label>
           <Select
-            value={formData.worthIt === null ? "" : formData.worthIt ? "yes" : "no"}
+            value={formData.worthIt === null ? "not_sure" : formData.worthIt ? "yes" : "no"}
             onValueChange={handleSelectChange}
           >
             <SelectTrigger className="w-full mt-1">
               <SelectValue placeholder="Select..." />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Not sure</SelectItem>
+              <SelectItem value="not_sure">Not sure</SelectItem>
               <SelectItem value="yes">Yes</SelectItem>
               <SelectItem value="no">No</SelectItem>
             </SelectContent>
