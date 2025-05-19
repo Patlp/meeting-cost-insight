@@ -1,7 +1,10 @@
 
 import React from 'react';
+import { Link } from 'react-router-dom';
 import MeetingHistoryComponent from '../components/MeetingHistory';
 import UserMenu from '../components/UserMenu';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft } from 'lucide-react';
 
 const MeetingHistory = () => {
   return (
@@ -13,9 +16,17 @@ const MeetingHistory = () => {
       
       <div className="mb-8">
         <h2 className="text-2xl font-semibold tracking-tight text-gray-800 mb-4">Your Past Meetings</h2>
-        <p className="text-gray-600">
-          View and manage your past meetings below.
-        </p>
+        <div className="flex justify-between items-center">
+          <p className="text-gray-600">
+            View and manage your past meetings below.
+          </p>
+          <Link to="/">
+            <Button variant="outline" className="flex items-center gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Calculator
+            </Button>
+          </Link>
+        </div>
       </div>
       
       <MeetingHistoryComponent />
