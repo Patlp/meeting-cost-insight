@@ -20,9 +20,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isPreview, setIsPreview] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Check if we're in a preview environment
+    const isPreviewEnvironment = 
+      window.location.hostname.includes('lovable.app') ||
+      window.location.hostname.includes('preview') ||
+      window.location.hostname.includes('localhost');
+    
+    setIsPreview(isPreviewEnvironment);
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -35,7 +44,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setUser(session?.user ?? null);
+      
+      // If in preview environment and no user is authenticated, create a mock user
+      if (isPreviewEnvironment && !session?.user) {
+        const mockUser = {
+          id: 'preview-user-id',
+          email: 'preview@example.com',
+          user_metadata: {
+            name: 'Preview User'
+          },
+          app_metadata: {},
+          aud: 'authenticated',
+          created_at: new Date().toISOString()
+        } as User;
+        
+        setUser(mockUser);
+      } else {
+        setUser(session?.user ?? null);
+      }
+      
       setLoading(false);
     });
 
@@ -122,7 +149,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, signIn, signUp, signOut, loading }}>
+    <AuthContext.Provider value={{ 
+      // If in preview, always provide at least the mock user
+      session: session || (isPreview ? {} as Session : null), 
+      user: user || (isPreview ? {
+        id: 'preview-user-id',
+        email: 'preview@example.com',
+        user_metadata: {
+          name: 'Preview User'
+        }
+      } as User : null),
+      signIn, 
+      signUp, 
+      signOut, 
+      loading 
+    }}>
       {children}
     </AuthContext.Provider>
   );
