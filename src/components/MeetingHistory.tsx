@@ -9,6 +9,10 @@ import MeetingHistoryTable from './MeetingHistoryTable';
 import MeetingDetailsDialog from './MeetingDetailsDialog';
 import MeetingPagination from './MeetingPagination';
 import EmptyMeetingHistory from './EmptyMeetingHistory';
+import { Database } from '@/integrations/supabase/types';
+
+// Define the meeting log type from the database schema
+type DbMeetingLog = Database['public']['Tables']['meeting_logs']['Row'];
 
 const MeetingHistory: React.FC = () => {
   const { user } = useAuth();
@@ -41,8 +45,8 @@ const MeetingHistory: React.FC = () => {
       // Ensure we're handling the data correctly
       if (!data) return [];
       
-      // Map the data to our MeetingLog type
-      return data.map(meeting => ({
+      // Map the database records to our MeetingLog type
+      return data.map((meeting: DbMeetingLog) => ({
         id: meeting.id,
         user_id: meeting.user_id,
         duration: meeting.duration,

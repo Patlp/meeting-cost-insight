@@ -15,6 +15,7 @@ export const customStorage = new CustomStorageAdapter();
 export const setRememberMe = (value: boolean) => {
   if (customStorage instanceof CustomStorageAdapter) {
     customStorage.setRememberMe(value);
+    console.log(`Remember me preference set to: ${value}`);
   }
 };
 
@@ -22,6 +23,16 @@ export const setRememberMe = (value: boolean) => {
  * Get the current storage adapter instance
  */
 export const getStorageAdapter = () => customStorage;
+
+/**
+ * Get the current "Remember Me" preference
+ */
+export const getRememberMe = (): boolean => {
+  if (customStorage instanceof CustomStorageAdapter) {
+    return customStorage.getRememberMe();
+  }
+  return false;
+};
 
 // Export the singleton instance
 export default customStorage;

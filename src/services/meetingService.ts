@@ -4,6 +4,9 @@ import { MeetingInput, MeetingCost, MeetingLog } from '@/types/meeting';
 import { toast } from '@/components/ui/use-toast';
 import { Database } from '@/integrations/supabase/types';
 
+// Define the type for meeting log insert based on database schema
+type MeetingLogInsert = Database['public']['Tables']['meeting_logs']['Insert'];
+
 /**
  * Attempts to save a meeting with retry logic for lock-related errors
  */
@@ -16,8 +19,8 @@ export const saveMeeting = async (
   const MAX_RETRIES = 2;
   let retryCount = 0;
   
-  // Helper function to prepare meeting data
-  const prepareMeetingData = (): Database['public']['Tables']['meeting_logs']['Insert'] => ({
+  // Helper function to prepare meeting data with proper typing
+  const prepareMeetingData = (): MeetingLogInsert => ({
     user_id: userId,
     duration: meetingInput.duration,
     attendees: meetingInput.attendees,

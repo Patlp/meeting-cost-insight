@@ -33,9 +33,12 @@ export const supabase = createClient<Database>(
       autoRefreshToken: true,
       detectSessionInUrl: true,
       flowType: 'pkce', // More secure than implicit flow
-      redirectTo: `${getRedirectUrl()}/auth/callback`,
-      storageKey: 'supabase.auth.token',
-      debug: true,
+      // We need to set the redirect URL in the auth options
+      // but use the correct property name from the Supabase SDK
+      cookieOptions: {
+        // Set path to root to allow access from all routes
+        path: '/',
+      },
     },
     global: {
       headers: {
@@ -47,6 +50,16 @@ export const supabase = createClient<Database>(
 
 // Log initialization complete
 console.log("✅ Supabase client initialized with redirectTo:", `${getRedirectUrl()}/auth/callback`);
+
+// Update the redirect URL in the auth settings
+supabase.auth.setSession({
+  access_token: '',
+  refresh_token: ''
+}, {
+  options: {
+    redirectTo: `${getRedirectUrl()}/auth/callback`
+  }
+});
 
 // Verbose session debugging
 try {
