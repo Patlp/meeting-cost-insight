@@ -27,6 +27,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const location = useLocation();
   const lastActivityTime = useRef(Date.now());
   const initStartTime = useRef(Date.now());
+  const authInitialized = useRef(false);
+  const isSigningIn = useRef(false);
 
   // Heartbeat timer to track activity
   useEffect(() => {
@@ -50,13 +52,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       
       // If we have a session but it's been inactive for a while, verify it
-      if (session && timeSinceActivity > 30) {
+      if (session && timeSinceActivity > 30 && !isSigningIn.current) {
         console.log("Verifying session after inactivity...");
         supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
           // Only log if something changed
           if (!!currentSession !== !!session) {
             console.log("Session verification result:", currentSession ? "valid" : "expired/missing");
+            
+            // Update session if needed, but without triggering navigation
+            if (currentSession && !session) {
+              setSession(currentSession);
+              setUser(currentSession.user);
+            }
           }
+        }).catch(error => {
+          console.error("Error verifying session:", error);
         });
       }
     }, 30000); // Every 30 seconds
@@ -77,7 +87,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     lastActivityTime.current = Date.now();
   }, [location]);
 
+  // Main authentication initialization 
   useEffect(() => {
+    if (authInitialized.current) {
+      console.log("Auth already initialized, skipping duplicate initialization");
+      return; // Prevent double initialization
+    }
+    
+    authInitialized.current = true;
     console.log("AuthProvider initializing...", { 
       currentPath: location.pathname,
       initStartTime: new Date(initStartTime.current).toISOString()
@@ -89,26 +106,39 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const eventTime = new Date().toISOString();
         console.log(`Auth state changed [${eventTime}]: ${event}`, newSession?.user?.email);
         
-        // Update state synchronously to avoid race conditions
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
-        setAuthError(null);
-        
+        // Update state synchronously without unneeded navigation
         if (event === 'SIGNED_IN') {
           console.log("User signed in successfully!");
+          setSession(newSession);
+          setUser(newSession?.user ?? null);
+          setAuthError(null);
           
-          // Only navigate on fresh sign in, not on page refresh
-          if (location.pathname === '/auth') {
-            navigate('/');
+          // Only navigate if actively signing in (not on page refresh/init)
+          if (isSigningIn.current && location.pathname === '/auth') {
+            console.log("Active sign-in detected, navigating to home");
+            setTimeout(() => navigate('/'), 100); // Delay to ensure state is updated first
+            isSigningIn.current = false;
           }
-        } else if (event === 'SIGNED_OUT') {
+        } 
+        else if (event === 'SIGNED_OUT') {
           console.log("User signed out");
+          setSession(null);
+          setUser(null);
+          
           // Only navigate if not already on auth page
           if (location.pathname !== '/auth') {
             navigate('/auth');
           }
-        } else if (event === 'TOKEN_REFRESHED') {
+        } 
+        else if (event === 'TOKEN_REFRESHED') {
           console.log("Auth token refreshed successfully");
+          setSession(newSession);
+          setUser(newSession?.user ?? null);
+        } 
+        else if (event === 'USER_UPDATED') {
+          console.log("User data updated");
+          setSession(newSession);
+          setUser(newSession?.user ?? null);
         }
       }
     );
@@ -157,6 +187,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       setAuthError(null);
       setLoading(true);
+      isSigningIn.current = true; // Mark as actively signing in
       console.log("Signing in with email:", email);
       
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -167,6 +198,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (error) {
         console.error("Sign in error:", error);
         setAuthError(error.message);
+        isSigningIn.current = false; // Reset flag on error
         
         toast({
           title: "Sign In Error",
@@ -178,6 +210,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       console.log("Sign in successful:", data.user?.email);
+      // Don't navigate here - let the auth state change handler do it
       
       toast({
         title: "Welcome back!",
@@ -185,6 +218,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
     } catch (error) {
       console.error('Sign in error:', error);
+      isSigningIn.current = false;
     } finally {
       setLoading(false);
     }
@@ -246,8 +280,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       console.log("Sign out successful");
       
-      // Navigate always after successful signout
-      navigate('/auth');
+      // The onAuthStateChanged will handle the navigation and state updates
       
       toast({
         title: "Signed out",

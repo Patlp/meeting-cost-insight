@@ -13,6 +13,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const [initialCheckComplete, setInitialCheckComplete] = useState(false);
   const [showingLoader, setShowingLoader] = useState(true);
   const [redirectTriggered, setRedirectTriggered] = useState(false);
+  const [waitedSufficientTime, setWaitedSufficientTime] = useState(false);
 
   // Debug current auth state
   useEffect(() => {
@@ -22,9 +23,19 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
       authLoading: loading,
       initialCheckComplete,
       authError: authError || 'none',
-      redirectTriggered
+      redirectTriggered,
+      waitedSufficientTime
     });
-  }, [session, loading, initialCheckComplete, location, authError, redirectTriggered]);
+  }, [session, loading, initialCheckComplete, location, authError, redirectTriggered, waitedSufficientTime]);
+
+  // Wait a minimum time before considering auth check complete
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setWaitedSufficientTime(true);
+    }, 500); // Give auth a minimum time to load
+    
+    return () => clearTimeout(timer);
+  }, []);
 
   // Effect to mark when initial check is complete, even if loading is stuck
   useEffect(() => {
@@ -35,10 +46,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
         setInitialCheckComplete(true);
         setShowingLoader(false);
       }
-    }, 1500);
+    }, 2000); // Increased timeout to give more time for auth to initialize
 
     // If loading completes normally, mark initial check as complete
-    if (!loading) {
+    if (!loading && waitedSufficientTime) {
       console.log("Auth loading complete, status:", session ? "authenticated" : "unauthenticated");
       setInitialCheckComplete(true);
       
@@ -52,7 +63,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     }
 
     return () => clearTimeout(timer);
-  }, [loading, session]);
+  }, [loading, session, waitedSufficientTime]);
 
   // Handle redirecting to auth page if not authenticated
   useEffect(() => {

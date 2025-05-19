@@ -1,3 +1,4 @@
+
 /**
  * Enhanced custom storage adapter that provides more reliable fallback when localStorage is unavailable
  * This helps the app work in environments where localStorage access is restricted (like Lovable editor)
@@ -7,6 +8,7 @@ class CustomStorageAdapter {
   private localStorageAvailable: boolean;
   private readonly prefix = 'app-storage:';
   private sessionStartTime: number;
+  private initComplete: boolean = false;
 
   constructor() {
     this.localStorageAvailable = this.checkLocalStorageAvailable();
@@ -15,6 +17,7 @@ class CustomStorageAdapter {
     
     // Load any existing session data during initialization
     this.loadExistingSession();
+    this.initComplete = true;
   }
 
   // Load any existing session data when the adapter initializes
@@ -22,6 +25,8 @@ class CustomStorageAdapter {
     if (this.localStorageAvailable) {
       try {
         // Scan localStorage for our prefixed keys and load them into memory as backup
+        const authKeys = [];
+        
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
           if (key && key.startsWith(this.prefix)) {
@@ -29,9 +34,19 @@ class CustomStorageAdapter {
             if (value) {
               const unprefixedKey = key.substring(this.prefix.length);
               this.inMemoryStorage[key] = value;
-              console.log(`Loaded existing key from localStorage: ${unprefixedKey} (length: ${value.length})`);
+              
+              if (key.includes('auth') || key.includes('supabase')) {
+                authKeys.push(unprefixedKey);
+                console.log(`Loaded existing auth key from localStorage: ${unprefixedKey} (length: ${value.length})`);
+              }
             }
           }
+        }
+        
+        if (authKeys.length > 0) {
+          console.log(`Successfully loaded ${authKeys.length} auth-related keys from storage`);
+        } else {
+          console.log("No existing auth keys found in storage");
         }
       } catch (e) {
         console.error('Failed to load existing session data:', e);
@@ -67,21 +82,34 @@ class CustomStorageAdapter {
     const isAuthKey = key.includes('auth') || key.includes('supabase');
     
     try {
-      if (this.localStorageAvailable) {
-        value = localStorage.getItem(prefixedKey);
+      // Check in-memory first for auth keys (faster and more reliable)
+      if (isAuthKey && this.inMemoryStorage[prefixedKey]) {
+        value = this.inMemoryStorage[prefixedKey];
+        console.log(`Retrieved auth key ${key} from in-memory storage (length: ${value.length})`);
+        return value;
       }
       
-      // If not found in localStorage, try in-memory
-      if (value === null) {
-        value = this.inMemoryStorage[prefixedKey] || null;
-        if (value && isAuthKey) {
-          console.log(`Retrieved auth key ${key} from in-memory fallback (length: ${value.length})`);
-        }
-      } else if (isAuthKey) {
-        console.log(`Retrieved auth key ${key} from localStorage (length: ${value.length})`);
+      // Then try localStorage
+      if (this.localStorageAvailable) {
+        value = localStorage.getItem(prefixedKey);
         
-        // Sync to in-memory as backup
-        this.inMemoryStorage[prefixedKey] = value;
+        if (value !== null) {
+          // Sync to in-memory as backup
+          this.inMemoryStorage[prefixedKey] = value;
+          
+          if (isAuthKey) {
+            console.log(`Retrieved auth key ${key} from localStorage (length: ${value.length})`);
+          }
+          
+          return value;
+        }
+      }
+      
+      // Final fallback to in-memory
+      value = this.inMemoryStorage[prefixedKey] || null;
+      
+      if (value && isAuthKey) {
+        console.log(`Retrieved auth key ${key} from in-memory fallback (length: ${value.length})`);
       }
       
       return value;
@@ -118,6 +146,7 @@ class CustomStorageAdapter {
           // Try again after clearing
           try {
             localStorage.setItem(prefixedKey, value);
+            console.log(`Successfully saved ${key} after clearing space`);
           } catch (retryError) {
             console.error(`Still failed to save ${key} after clearing space:`, retryError);
           }

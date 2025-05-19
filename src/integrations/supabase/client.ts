@@ -8,22 +8,35 @@ const SUPABASE_URL = "https://vklytnmygsdihdbxzhlf.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrbHl0bm15Z3NkaWhkYnh6aGxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDQ3MjksImV4cCI6MjA2MzIyMDcyOX0.JWaAnm_FQ8idv8Ngbjq5n3ms4j6os6jXg4mzWBsRpno";
 
 // Debug any errors when initializing
-console.log("Initializing Supabase client...");
+console.log("Initializing Supabase client with session persistence...");
 
 // Create a custom storage interface that matches the Web Storage API
 const customStorageAdapter = {
   getItem: (key: string) => {
-    const value = customStorage.getItem(key);
-    console.log(`Storage READ: ${key} = ${value ? `${value.substring(0, 20)}... (${value.length} chars)` : "null"}`);
-    return value;
+    try {
+      const value = customStorage.getItem(key);
+      console.log(`Storage READ: ${key} = ${value ? `${value.substring(0, 20)}... (${value.length} chars)` : "null"}`);
+      return value;
+    } catch (error) {
+      console.error(`Error reading ${key} from storage:`, error);
+      return null;
+    }
   },
   setItem: (key: string, value: string) => {
-    console.log(`Storage WRITE: ${key} = ${value.substring(0, 20)}... (${value.length} chars)`);
-    customStorage.setItem(key, value);
+    try {
+      console.log(`Storage WRITE: ${key} = ${value.substring(0, 20)}... (${value.length} chars)`);
+      customStorage.setItem(key, value);
+    } catch (error) {
+      console.error(`Error writing ${key} to storage:`, error);
+    }
   },
   removeItem: (key: string) => {
-    console.log(`Storage DELETE: ${key}`);
-    customStorage.removeItem(key);
+    try {
+      console.log(`Storage DELETE: ${key}`);
+      customStorage.removeItem(key);
+    } catch (error) {
+      console.error(`Error removing ${key} from storage:`, error);
+    }
   }
 };
 
@@ -36,9 +49,8 @@ export const supabase = createClient<Database>(
       storage: customStorageAdapter,
       persistSession: true,
       autoRefreshToken: true,
-      detectSessionInUrl: true,
+      detectSessionInUrl: false, // Changed to false to prevent unexpected URL param processing
       flowType: 'implicit',
-      // Shorter timeouts for more responsive behavior
       storageKey: 'supabase.auth.token',
       debug: true,
     },
@@ -87,7 +99,7 @@ supabase.auth.getSession().then(({ data, error }) => {
   }
 });
 
-// Set up global auth state listener
-supabase.auth.onAuthStateChange((event, newSession) => {
+// Set up global auth state listener (now with better error handling)
+const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
   console.log(`Auth state changed: ${event}`, newSession ? `User: ${newSession.user.email}` : "No session");
 });
