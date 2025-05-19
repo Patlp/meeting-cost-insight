@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,40 +20,45 @@ const MeetingHistory: React.FC = () => {
   const fetchMeetingLogs = async (): Promise<MeetingLog[]> => {
     if (!user) return [];
 
-    // Fetch from the database with correct typing
-    const { data, error } = await supabase
-      .from('meeting_logs')
-      .select('*')
-      .eq('user_id', user.id as string)
-      .order('created_at', { ascending: false })
-      .range((page - 1) * pageSize, page * pageSize - 1);
+    try {
+      // Fetch from the database with correct typing
+      const { data, error } = await supabase
+        .from('meeting_logs')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .range((page - 1) * pageSize, page * pageSize - 1);
 
-    if (error) {
-      toast({
-        title: "Error fetching meeting logs",
-        description: error.message,
-        variant: "destructive",
-      });
-      throw error;
+      if (error) {
+        toast({
+          title: "Error fetching meeting logs",
+          description: error.message,
+          variant: "destructive",
+        });
+        throw error;
+      }
+
+      // Ensure we're handling the data correctly
+      if (!data) return [];
+      
+      // Map the data to our MeetingLog type
+      return data.map(meeting => ({
+        id: meeting.id,
+        user_id: meeting.user_id,
+        duration: meeting.duration,
+        attendees: meeting.attendees,
+        average_salary: meeting.average_salary,
+        purpose: meeting.purpose,
+        worth_it: meeting.worth_it,
+        total_cost: meeting.total_cost,
+        hourly_rate: meeting.hourly_rate,
+        timestamp: meeting.created_at,
+        created_at: meeting.created_at
+      }));
+    } catch (err) {
+      console.error("Error fetching meeting logs:", err);
+      return [];
     }
-
-    // Ensure we're handling the data correctly
-    if (!data) return [];
-    
-    // Map the created_at field to timestamp for compatibility with our types
-    return data.map(meeting => ({
-      id: meeting.id,
-      user_id: meeting.user_id,
-      duration: meeting.duration,
-      attendees: meeting.attendees,
-      average_salary: meeting.average_salary,
-      purpose: meeting.purpose,
-      worth_it: meeting.worth_it,
-      total_cost: meeting.total_cost,
-      hourly_rate: meeting.hourly_rate,
-      timestamp: meeting.created_at,
-      created_at: meeting.created_at
-    }));
   };
 
   const { data: meetings = [], refetch, isLoading, isError } = useQuery({
@@ -66,7 +72,7 @@ const MeetingHistory: React.FC = () => {
       const { error } = await supabase
         .from('meeting_logs')
         .delete()
-        .eq('id', id as string);
+        .eq('id', id);
 
       if (error) throw error;
 
@@ -88,18 +94,23 @@ const MeetingHistory: React.FC = () => {
   const fetchTotalCount = async () => {
     if (!user) return 0;
     
-    // Get count from database
-    const { count, error } = await supabase
-      .from('meeting_logs')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id as string);
-    
-    if (error) {
-      console.error('Error fetching meeting count:', error);
+    try {
+      // Get count from database
+      const { count, error } = await supabase
+        .from('meeting_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+      
+      if (error) {
+        console.error('Error fetching meeting count:', error);
+        return 0;
+      }
+      
+      return count || 0;
+    } catch (err) {
+      console.error("Error fetching count:", err);
       return 0;
     }
-    
-    return count || 0;
   };
 
   const { data: totalCount = 0 } = useQuery({
