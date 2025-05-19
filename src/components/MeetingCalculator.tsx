@@ -52,6 +52,13 @@ const MeetingCalculator: React.FC = () => {
           description: "Your meeting has been saved to your history.",
         });
       }
+    } catch (error) {
+      console.error('Error saving meeting:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save meeting. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -63,7 +70,7 @@ const MeetingCalculator: React.FC = () => {
         <MeetingForm onCalculate={handleCalculate} />
         
         {user && (
-          <div className="mt-4 flex justify-center">
+          <div className="mt-4">
             <Button 
               onClick={handleSave}
               disabled={saving || !meetingCost}
@@ -79,10 +86,26 @@ const MeetingCalculator: React.FC = () => {
       
       <div className="bg-white p-6 rounded-lg shadow-sm border">
         {meetingCost ? (
-          <ResultsDisplay 
-            meetingInput={meetingInput} 
-            meetingCost={meetingCost} 
-          />
+          <div>
+            <ResultsDisplay 
+              meetingInput={meetingInput} 
+              meetingCost={meetingCost} 
+            />
+            
+            {user && (
+              <div className="mt-6">
+                <Button 
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="w-full flex items-center justify-center gap-2"
+                  variant="primary"
+                >
+                  <Save className="h-4 w-4" />
+                  {saving ? "Saving..." : "Save Meeting to History"}
+                </Button>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="text-center py-12 text-gray-500">
             <p className="text-lg">Fill out the form and click "Calculate" to see the meeting cost.</p>
