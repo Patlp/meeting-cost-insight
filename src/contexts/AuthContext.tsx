@@ -23,34 +23,54 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const navigate = useNavigate();
 
   useEffect(() => {
+    console.log("AuthProvider initializing...");
+    
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+      (event, newSession) => {
+        console.log(`Auth state changed: ${event}`, newSession?.user?.email);
+        
+        // Update state synchronously first
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
         setLoading(false);
       }
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
+      console.log("Initial session check:", existingSession ? `User ${existingSession.user.email} found` : "No session found");
+      setSession(existingSession);
+      setUser(existingSession?.user ?? null);
+      setLoading(false);
+    }).catch(error => {
+      console.error("Error checking session:", error);
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      console.log("Cleaning up auth subscription");
+      subscription.unsubscribe();
+    };
   }, []);
+
+  // This effect will run when the session changes
+  useEffect(() => {
+    console.log("Session state updated:", session ? `User ${session.user.email} active` : "No active session");
+  }, [session]);
 
   const signIn = async (email: string, password: string) => {
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signInWithPassword({
+      console.log("Signing in with email:", email);
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
+        console.error("Sign in error:", error);
         toast({
           title: "Sign In Error",
           description: error.message,
@@ -59,6 +79,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         throw error;
       }
 
+      console.log("Sign in successful:", data.user?.email);
+      
       toast({
         title: "Welcome back!",
         description: "You have successfully signed in.",
@@ -75,12 +97,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const signUp = async (email: string, password: string) => {
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signUp({
+      console.log("Signing up with email:", email);
+      
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
       });
 
       if (error) {
+        console.error("Sign up error:", error);
         toast({
           title: "Sign Up Error",
           description: error.message,
@@ -89,6 +114,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         throw error;
       }
 
+      console.log("Sign up successful:", data);
+      
       toast({
         title: "Account created!",
         description: "Please check your email for the confirmation link.",
@@ -103,7 +130,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const signOut = async () => {
     try {
       setLoading(true);
+      console.log("Signing out...");
+      
       await supabase.auth.signOut();
+      console.log("Sign out successful");
+      
       navigate('/auth');
       toast({
         title: "Signed out",

@@ -7,12 +7,25 @@ import { customStorage } from '@/utils/customStorage';
 const SUPABASE_URL = "https://vklytnmygsdihdbxzhlf.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrbHl0bm15Z3NkaWhkYnh6aGxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDQ3MjksImV4cCI6MjA2MzIyMDcyOX0.JWaAnm_FQ8idv8Ngbjq5n3ms4j6os6jXg4mzWBsRpno";
 
+// Debug any errors when initializing
+console.log("Initializing Supabase client...");
+
 // Create a custom storage interface that matches the Web Storage API
 const customStorageAdapter = {
-  getItem: (key: string) => customStorage.getItem(key),
-  setItem: (key: string, value: string) => customStorage.setItem(key, value),
-  removeItem: (key: string) => customStorage.removeItem(key),
-}
+  getItem: (key: string) => {
+    const value = customStorage.getItem(key);
+    console.log(`Storage READ: ${key} = ${value ? value.substring(0, 20) + "..." : "null"}`);
+    return value;
+  },
+  setItem: (key: string, value: string) => {
+    console.log(`Storage WRITE: ${key} = ${value.substring(0, 20)}...`);
+    customStorage.setItem(key, value);
+  },
+  removeItem: (key: string) => {
+    console.log(`Storage DELETE: ${key}`);
+    customStorage.removeItem(key);
+  }
+};
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +38,13 @@ export const supabase = createClient<Database>(
       storage: customStorageAdapter,
       persistSession: true,
       autoRefreshToken: true,
+      detectSessionInUrl: true,
+      flowType: 'implicit',
     }
   }
 );
+
+// Debug initial session
+supabase.auth.getSession().then(({ data: { session } }) => {
+  console.log("Initial session check:", session ? "Session found" : "No session");
+});
