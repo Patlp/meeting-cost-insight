@@ -9,7 +9,69 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      meeting_logs: {
+        Row: {
+          attendees: number
+          average_salary: number
+          created_at: string
+          duration: number
+          hourly_rate: number
+          id: string
+          purpose: string | null
+          total_cost: number
+          user_id: string
+          worth_it: boolean | null
+        }
+        Insert: {
+          attendees: number
+          average_salary: number
+          created_at?: string
+          duration: number
+          hourly_rate: number
+          id?: string
+          purpose?: string | null
+          total_cost: number
+          user_id: string
+          worth_it?: boolean | null
+        }
+        Update: {
+          attendees?: number
+          average_salary?: number
+          created_at?: string
+          duration?: number
+          hourly_rate?: number
+          id?: string
+          purpose?: string | null
+          total_cost?: number
+          user_id?: string
+          worth_it?: boolean | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          full_name: string | null
+          id: string
+          updated_at: string | null
+          username: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          full_name?: string | null
+          id: string
+          updated_at?: string | null
+          username?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string | null
+          username?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

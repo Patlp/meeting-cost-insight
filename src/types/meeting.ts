@@ -1,4 +1,6 @@
 
+import { User } from '@supabase/supabase-js';
+
 export interface MeetingInput {
   duration: number;
   attendees: number;
@@ -13,7 +15,15 @@ export interface MeetingCost {
   isHighCost: boolean;
 }
 
-export interface MeetingLog extends MeetingInput, MeetingCost {
-  id?: number;
+export interface MeetingLog {
+  id?: string;
+  user_id: string;
+  duration: number;
+  attendees: number;
+  average_salary: number;
+  purpose?: string | null;
+  worth_it?: boolean | null;
+  total_cost: number;
+  hourly_rate: number;
   timestamp: string;
 }

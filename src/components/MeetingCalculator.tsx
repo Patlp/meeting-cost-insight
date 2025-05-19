@@ -6,13 +6,16 @@ import MeetingForm from './MeetingForm';
 import ResultsDisplay from './ResultsDisplay';
 import { calculateMeetingCost } from '@/utils/calculateMeetingCost';
 import { MeetingInput, MeetingCost, MeetingLog } from '@/types/meeting';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 const MeetingCalculator: React.FC = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [results, setResults] = useState<MeetingCost | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleCalculate = (data: MeetingInput) => {
+  const handleCalculate = async (data: MeetingInput) => {
     setLoading(true);
     
     try {
@@ -20,18 +23,39 @@ const MeetingCalculator: React.FC = () => {
       const costResults = calculateMeetingCost(data);
       setResults(costResults);
       
-      // In a real app with Supabase, we would save to the database here
-      // const meetingLog: MeetingLog = {
-      //   ...data,
-      //   ...costResults,
-      //   timestamp: new Date().toISOString()
-      // };
-      // saveMeetingLog(meetingLog);
-
-      toast({
-        title: "Calculation Complete",
-        description: "The meeting cost has been calculated.",
-      });
+      if (user) {
+        // Create meeting log entry
+        const meetingLog: MeetingLog = {
+          user_id: user.id,
+          duration: data.duration,
+          attendees: data.attendees,
+          average_salary: data.averageSalary,
+          purpose: data.purpose || null,
+          worth_it: data.worthIt,
+          total_cost: costResults.totalCost,
+          hourly_rate: costResults.hourlyRatePerAttendee,
+          timestamp: new Date().toISOString()
+        };
+        
+        // Save to database
+        const { error } = await supabase
+          .from('meeting_logs')
+          .insert(meetingLog);
+          
+        if (error) {
+          console.error("Error saving meeting log:", error);
+          toast({
+            title: "Error",
+            description: "Your meeting was calculated but could not be saved.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Success",
+            description: "Meeting cost calculated and saved.",
+          });
+        }
+      }
     } catch (error) {
       toast({
         title: "Calculation Failed",
