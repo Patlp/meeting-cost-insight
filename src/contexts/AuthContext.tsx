@@ -157,7 +157,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         email: 'preview@example.com',
         user_metadata: {
           name: 'Preview User'
-        }
+        },
+        app_metadata: {},
+        aud: 'authenticated',
+        created_at: new Date().toISOString()
       } as User : null),
       signIn, 
       signUp, 
