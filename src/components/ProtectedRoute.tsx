@@ -10,92 +10,67 @@ interface ProtectedRouteProps {
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { session, loading, authError } = useAuth();
   const location = useLocation();
-  const [initialCheckComplete, setInitialCheckComplete] = useState(false);
-  const [showingLoader, setShowingLoader] = useState(true);
-  const [redirectTriggered, setRedirectTriggered] = useState(false);
-  const [waitedSufficientTime, setWaitedSufficientTime] = useState(false);
-
-  // Debug current auth state
+  const [shouldRedirect, setShouldRedirect] = useState(false);
+  const [showLoader, setShowLoader] = useState(true);
+  
+  // Debug route protection
   useEffect(() => {
-    console.log("ProtectedRoute rendering:", {
-      path: location.pathname,
-      hasSession: !!session,
-      authLoading: loading,
-      initialCheckComplete,
-      authError: authError || 'none',
-      redirectTriggered,
-      waitedSufficientTime
+    console.log("🛡️ Protected route check:", { 
+      path: location.pathname, 
+      hasSession: !!session, 
+      loading, 
+      authError: authError || 'none' 
     });
-  }, [session, loading, initialCheckComplete, location, authError, redirectTriggered, waitedSufficientTime]);
+  }, [session, loading, location, authError]);
 
-  // Wait a minimum time before considering auth check complete
+  // Handle authentication verification
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setWaitedSufficientTime(true);
-    }, 500); // Give auth a minimum time to load
+    // Wait for auth to finish loading before making decisions
+    if (loading) return;
     
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Effect to mark when initial check is complete, even if loading is stuck
-  useEffect(() => {
-    // Set a timeout to ensure we don't get stuck in loading state forever
-    const timer = setTimeout(() => {
-      if (loading) {
-        console.log("Auth check taking too long, proceeding with available information");
-        setInitialCheckComplete(true);
-        setShowingLoader(false);
-      }
-    }, 2000); // Increased timeout to give more time for auth to initialize
-
-    // If loading completes normally, mark initial check as complete
-    if (!loading && waitedSufficientTime) {
-      console.log("Auth loading complete, status:", session ? "authenticated" : "unauthenticated");
-      setInitialCheckComplete(true);
+    // If we have a session, we're good to go
+    if (session) {
+      console.log("✅ User authenticated, showing protected content");
+      setShowLoader(false);
+      return;
+    }
+    
+    // If auth is done loading and we don't have a session, prepare to redirect
+    if (!loading && !session) {
+      console.log("🚫 No authentication, preparing redirect to login");
       
-      // Add a tiny delay before hiding loader for smoother transitions
-      const hideTimer = setTimeout(() => {
-        setShowingLoader(false);
+      // Short delay before redirecting to prevent flickering
+      // if auth state changes quickly
+      const redirectTimer = setTimeout(() => {
+        setShouldRedirect(true);
       }, 300);
       
-      clearTimeout(timer);
-      return () => clearTimeout(hideTimer);
+      return () => clearTimeout(redirectTimer);
     }
+  }, [session, loading, location.pathname]);
 
-    return () => clearTimeout(timer);
-  }, [loading, session, waitedSufficientTime]);
-
-  // Handle redirecting to auth page if not authenticated
-  useEffect(() => {
-    if (initialCheckComplete && !loading && !session && !redirectTriggered) {
-      console.log("Authentication required for path:", location.pathname);
-      setRedirectTriggered(true);
-    }
-  }, [initialCheckComplete, loading, session, location.pathname, redirectTriggered]);
-
-  // Show loading spinner while checking authentication
-  if (showingLoader) {
+  // Show loading state while checking authentication
+  if (loading || (showLoader && !shouldRedirect)) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen bg-gray-50">
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
         <div className="mt-4 text-primary font-medium">Verifying authentication...</div>
-        {loading && initialCheckComplete && (
-          <div className="mt-2 text-sm text-gray-500">
-            This is taking longer than expected...
+        {loading && (
+          <div className="mt-2 text-sm text-gray-500 max-w-md text-center">
+            This is taking longer than expected. Checking your authentication status...
           </div>
         )}
       </div>
     );
   }
 
-  // If we're redirecting, go to auth page
-  if (redirectTriggered) {
-    console.log(`Redirecting from ${location.pathname} to /auth`);
-    // Redirect to the login page with the return url
+  // Redirect to auth page if not authenticated
+  if (shouldRedirect || (!loading && !session)) {
+    console.log(`🔀 Redirecting from ${location.pathname} to /auth`);
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  // If session exists, show children
+  // User is authenticated, render children
   return <>{children}</>;
 };
 

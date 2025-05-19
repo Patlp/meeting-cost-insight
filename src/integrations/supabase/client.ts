@@ -8,48 +8,18 @@ const SUPABASE_URL = "https://vklytnmygsdihdbxzhlf.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrbHl0bm15Z3NkaWhkYnh6aGxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDQ3MjksImV4cCI6MjA2MzIyMDcyOX0.JWaAnm_FQ8idv8Ngbjq5n3ms4j6os6jXg4mzWBsRpno";
 
 // Debug any errors when initializing
-console.log("Initializing Supabase client with session persistence...");
+console.log("🔑 Supabase initializing...");
 
-// Create a custom storage interface that matches the Web Storage API
-const customStorageAdapter = {
-  getItem: (key: string) => {
-    try {
-      const value = customStorage.getItem(key);
-      console.log(`Storage READ: ${key} = ${value ? `${value.substring(0, 20)}... (${value.length} chars)` : "null"}`);
-      return value;
-    } catch (error) {
-      console.error(`Error reading ${key} from storage:`, error);
-      return null;
-    }
-  },
-  setItem: (key: string, value: string) => {
-    try {
-      console.log(`Storage WRITE: ${key} = ${value.substring(0, 20)}... (${value.length} chars)`);
-      customStorage.setItem(key, value);
-    } catch (error) {
-      console.error(`Error writing ${key} to storage:`, error);
-    }
-  },
-  removeItem: (key: string) => {
-    try {
-      console.log(`Storage DELETE: ${key}`);
-      customStorage.removeItem(key);
-    } catch (error) {
-      console.error(`Error removing ${key} from storage:`, error);
-    }
-  }
-};
-
-// Export a single client instance to be used throughout the app
+// Create a single client instance to be used throughout the app
 export const supabase = createClient<Database>(
   SUPABASE_URL, 
   SUPABASE_PUBLISHABLE_KEY,
   {
     auth: {
-      storage: customStorageAdapter,
+      storage: customStorage,
       persistSession: true,
       autoRefreshToken: true,
-      detectSessionInUrl: false, // Changed to false to prevent unexpected URL param processing
+      detectSessionInUrl: false,
       flowType: 'implicit',
       storageKey: 'supabase.auth.token',
       debug: true,
@@ -62,44 +32,41 @@ export const supabase = createClient<Database>(
   }
 );
 
-// Debug initial session
-console.log("Checking for initial session...");
+// Verbose session debugging
+console.log("🔍 Checking initial Supabase session...");
 supabase.auth.getSession().then(({ data, error }) => {
   if (error) {
-    console.error("Error getting initial session:", error);
+    console.error("❌ Error getting initial session:", error.message);
     return;
   }
   
   const { session } = data;
-  console.log(
-    "Initial session check:", 
-    session ? 
-      `Session found for ${session.user.email} (expires: ${new Date(session.expires_at! * 1000).toISOString()})` : 
-      "No session"
-  );
-  
-  // Check token expiration if session exists
   if (session) {
     const now = Math.floor(Date.now() / 1000);
     const expiresAt = session.expires_at as number;
     const timeLeft = expiresAt - now;
     
-    console.log(`Session token expires in ${timeLeft} seconds (${Math.floor(timeLeft / 60)} minutes)`);
+    console.log(`✅ Session found: ${session.user.email}`);
+    console.log(`⏱️ Session expires in: ${Math.floor(timeLeft / 60)} minutes`);
     
-    if (timeLeft < 300) { // Less than 5 minutes left
-      console.log("Session token expires soon, refreshing...");
+    // Proactively refresh if less than 30 minutes left
+    if (timeLeft < 1800) {
+      console.log("🔄 Refreshing session token...");
       supabase.auth.refreshSession().then(({ data, error }) => {
-        if (error) {
-          console.error("Failed to refresh session:", error);
-        } else {
-          console.log("Session refreshed successfully");
-        }
+        console.log(error ? "❌ Token refresh failed" : "✅ Token refreshed successfully");
       });
     }
+  } else {
+    console.log("ℹ️ No active session found");
   }
 });
 
-// Set up global auth state listener (now with better error handling)
-const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
-  console.log(`Auth state changed: ${event}`, newSession ? `User: ${newSession.user.email}` : "No session");
+// Monitor auth state changes
+supabase.auth.onAuthStateChange((event, newSession) => {
+  console.log(`🔔 Auth state changed: ${event}`, newSession ? 
+    `User: ${newSession.user.email}` : "No session");
+  
+  if (event === 'TOKEN_REFRESHED') {
+    console.log("🔄 Auth token refreshed automatically");
+  }
 });

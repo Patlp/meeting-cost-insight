@@ -23,172 +23,181 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const [initializing, setInitializing] = useState(true);
+  
   const navigate = useNavigate();
   const location = useLocation();
-  const lastActivityTime = useRef(Date.now());
-  const initStartTime = useRef(Date.now());
-  const authInitialized = useRef(false);
+  
+  // Refs to track state safely across renders and avoid race conditions
   const isSigningIn = useRef(false);
-
-  // Heartbeat timer to track activity
+  const isSigningOut = useRef(false);
+  const navigationInProgress = useRef(false);
+  const authSubscription = useRef<{ unsubscribe: () => void } | null>(null);
+  const sessionCheckTimeout = useRef<NodeJS.Timeout | null>(null);
+  const authInitialized = useRef(false);
+  
+  // Initialize auth state - this only runs once
   useEffect(() => {
-    const updateActivityTime = () => {
-      lastActivityTime.current = Date.now();
-    };
-
-    // Update on user interactions
-    window.addEventListener('click', updateActivityTime);
-    window.addEventListener('keydown', updateActivityTime);
-    window.addEventListener('mousemove', updateActivityTime);
-    
-    // Start a heartbeat interval
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const timeSinceInit = Math.floor((now - initStartTime.current) / 1000);
-      const timeSinceActivity = Math.floor((now - lastActivityTime.current) / 1000);
-      
-      if (session) {
-        console.log(`Auth heartbeat: session active for ${timeSinceInit}s, last activity ${timeSinceActivity}s ago`);
-      }
-      
-      // If we have a session but it's been inactive for a while, verify it
-      if (session && timeSinceActivity > 30 && !isSigningIn.current) {
-        console.log("Verifying session after inactivity...");
-        supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-          // Only log if something changed
-          if (!!currentSession !== !!session) {
-            console.log("Session verification result:", currentSession ? "valid" : "expired/missing");
-            
-            // Update session if needed, but without triggering navigation
-            if (currentSession && !session) {
-              setSession(currentSession);
-              setUser(currentSession.user);
-            }
-          }
-        }).catch(error => {
-          console.error("Error verifying session:", error);
-        });
-      }
-    }, 30000); // Every 30 seconds
-    
-    return () => {
-      window.removeEventListener('click', updateActivityTime);
-      window.removeEventListener('keydown', updateActivityTime);
-      window.removeEventListener('mousemove', updateActivityTime);
-      clearInterval(interval);
-    };
-  }, [session]);
-
-  // Track page changes to help debug navigation-related auth issues
-  useEffect(() => {
-    console.log(`Page changed to: ${location.pathname}${location.search}`);
-    
-    // Update activity time on navigation
-    lastActivityTime.current = Date.now();
-  }, [location]);
-
-  // Main authentication initialization 
-  useEffect(() => {
+    // Prevent double initialization
     if (authInitialized.current) {
-      console.log("Auth already initialized, skipping duplicate initialization");
-      return; // Prevent double initialization
+      console.log("🔒 Auth already initialized, skipping");
+      return;
     }
     
     authInitialized.current = true;
-    console.log("AuthProvider initializing...", { 
-      currentPath: location.pathname,
-      initStartTime: new Date(initStartTime.current).toISOString()
+    console.log(`🔒 Auth initializing on path: ${location.pathname}`);
+    
+    // STEP 1: Set up auth state listener FIRST (before any async operations)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      console.log(`🔔 Auth state changed: ${event}`, newSession?.user?.email || "No user");
+      
+      // Handle session changes synchronously to avoid race conditions
+      if (newSession) {
+        setSession(newSession);
+        setUser(newSession.user);
+        setAuthError(null);
+        
+        // If this is an active sign-in (not just a refresh), navigate to home
+        if (isSigningIn.current) {
+          console.log("🔑 Active sign-in detected");
+          
+          // Make sure we only navigate if we're currently on the auth page
+          if (location.pathname === '/auth' && !navigationInProgress.current) {
+            console.log("🔀 Navigating to home page after sign-in");
+            navigationInProgress.current = true;
+            
+            // Small delay to ensure state is updated first
+            setTimeout(() => {
+              navigate('/');
+              navigationInProgress.current = false;
+            }, 100);
+          }
+          
+          isSigningIn.current = false;
+        }
+      } 
+      else if (event === 'SIGNED_OUT') {
+        console.log("🚪 User signed out");
+        setSession(null);
+        setUser(null);
+        
+        // Only navigate if not already on auth page and not during initialization
+        if (location.pathname !== '/auth' && !initializing && !navigationInProgress.current) {
+          console.log("🔀 Navigating to auth page after sign-out");
+          navigationInProgress.current = true;
+          
+          setTimeout(() => {
+            navigate('/auth');
+            navigationInProgress.current = false;
+          }, 100);
+        }
+      }
     });
     
-    // Set up auth state listener FIRST before any async operations
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, newSession) => {
-        const eventTime = new Date().toISOString();
-        console.log(`Auth state changed [${eventTime}]: ${event}`, newSession?.user?.email);
+    authSubscription.current = subscription;
+    
+    // STEP 2: AFTER setting up the listener, check for existing session
+    const checkSession = async () => {
+      try {
+        console.log("🔍 Checking for existing session");
+        const { data, error } = await supabase.auth.getSession();
         
-        // Update state synchronously without unneeded navigation
-        if (event === 'SIGNED_IN') {
-          console.log("User signed in successfully!");
-          setSession(newSession);
-          setUser(newSession?.user ?? null);
-          setAuthError(null);
-          
-          // Only navigate if actively signing in (not on page refresh/init)
-          if (isSigningIn.current && location.pathname === '/auth') {
-            console.log("Active sign-in detected, navigating to home");
-            setTimeout(() => navigate('/'), 100); // Delay to ensure state is updated first
-            isSigningIn.current = false;
-          }
+        if (error) {
+          console.error("❌ Error checking session:", error.message);
+          setAuthError(error.message);
         } 
-        else if (event === 'SIGNED_OUT') {
-          console.log("User signed out");
+        else {
+          const existingSession = data.session;
+          console.log(existingSession 
+            ? `✅ Existing session found for ${existingSession.user.email}`
+            : "ℹ️ No existing session");
+            
+          setSession(existingSession);
+          setUser(existingSession?.user ?? null);
+        }
+      } catch (error) {
+        console.error("❌ Critical error checking session:", error);
+        setAuthError("Failed to initialize authentication");
+      } finally {
+        setLoading(false);
+        setInitializing(false);
+      }
+    };
+    
+    // Add a short delay before checking session to ensure auth state is ready
+    sessionCheckTimeout.current = setTimeout(checkSession, 100);
+    
+    // Cleanup
+    return () => {
+      console.log("🧹 Cleaning up auth subscription");
+      if (authSubscription.current) {
+        authSubscription.current.unsubscribe();
+      }
+      if (sessionCheckTimeout.current) {
+        clearTimeout(sessionCheckTimeout.current);
+      }
+    };
+  }, [navigate, location.pathname]);
+  
+  // Set up session verification via periodic heartbeat
+  useEffect(() => {
+    // Only start heartbeat if we have a session
+    if (!session) return;
+    
+    console.log("💓 Starting auth heartbeat");
+    
+    const heartbeatInterval = setInterval(() => {
+      // Skip verification if we're currently signing in/out
+      if (isSigningIn.current || isSigningOut.current) return;
+      
+      // Check the session validity
+      supabase.auth.getSession().then(({ data }) => {
+        const currentSession = data.session;
+        
+        if (!currentSession && session) {
+          console.log("⚠️ Session lost during heartbeat check");
           setSession(null);
           setUser(null);
           
-          // Only navigate if not already on auth page
-          if (location.pathname !== '/auth') {
-            navigate('/auth');
+          // Navigate to auth if not already there
+          if (location.pathname !== '/auth' && !navigationInProgress.current) {
+            console.log("🔀 Navigating to auth page after session loss");
+            navigationInProgress.current = true;
+            
+            setTimeout(() => {
+              navigate('/auth');
+              navigationInProgress.current = false;
+            }, 100);
           }
-        } 
-        else if (event === 'TOKEN_REFRESHED') {
-          console.log("Auth token refreshed successfully");
-          setSession(newSession);
-          setUser(newSession?.user ?? null);
-        } 
-        else if (event === 'USER_UPDATED') {
-          console.log("User data updated");
-          setSession(newSession);
-          setUser(newSession?.user ?? null);
         }
-      }
-    );
-
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session: existingSession }, error }) => {
-      const loadTime = Date.now() - initStartTime.current;
-      
-      if (error) {
-        console.error(`Error checking session (${loadTime}ms):`, error);
-        setAuthError(error.message);
-      } else {
-        console.log(
-          `Initial session check (${loadTime}ms):`, 
-          existingSession 
-            ? `User ${existingSession.user.email} found` 
-            : "No session found"
-        );
-      }
-      
-      setSession(existingSession);
-      setUser(existingSession?.user ?? null);
-      setLoading(false);
-      setInitializing(false);
-    }).catch(error => {
-      console.error("Critical error checking session:", error);
-      setLoading(false);
-      setInitializing(false);
-      setAuthError("Failed to initialize authentication");
-    });
-
-    return () => {
-      console.log("Cleaning up auth subscription");
-      subscription.unsubscribe();
-    };
-  }, [navigate, location.pathname]);
-
-  // Separate effect for logging session state changes
+        else if (currentSession) {
+          // Refresh token if it's less than 30 minutes from expiry
+          const now = Math.floor(Date.now() / 1000);
+          const expiresAt = currentSession.expires_at as number;
+          const timeLeft = expiresAt - now;
+          
+          if (timeLeft < 1800) {
+            console.log("🔄 Refreshing session token during heartbeat");
+            supabase.auth.refreshSession();
+          }
+        }
+      });
+    }, 30000); // Check every 30 seconds
+    
+    return () => clearInterval(heartbeatInterval);
+  }, [session, navigate, location.pathname]);
+  
+  // Log path changes for debugging
   useEffect(() => {
-    if (!initializing) {
-      console.log("Session state updated:", session ? `User ${session.user.email} active` : "No active session");
-    }
-  }, [session, initializing]);
+    console.log(`📍 Path changed: ${location.pathname}`);
+  }, [location.pathname]);
 
   const signIn = async (email: string, password: string) => {
     try {
       setAuthError(null);
       setLoading(true);
-      isSigningIn.current = true; // Mark as actively signing in
-      console.log("Signing in with email:", email);
+      isSigningIn.current = true;
+      
+      console.log("🔑 Signing in with email:", email);
       
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -196,9 +205,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       if (error) {
-        console.error("Sign in error:", error);
+        console.error("❌ Sign in error:", error.message);
         setAuthError(error.message);
-        isSigningIn.current = false; // Reset flag on error
+        isSigningIn.current = false;
         
         toast({
           title: "Sign In Error",
@@ -209,15 +218,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         throw error;
       }
 
-      console.log("Sign in successful:", data.user?.email);
-      // Don't navigate here - let the auth state change handler do it
+      console.log("✅ Sign in successful:", data.user?.email);
       
       toast({
         title: "Welcome back!",
         description: "You have successfully signed in.",
       });
+      
+      // Auth state change listener will handle session update and navigation
     } catch (error) {
-      console.error('Sign in error:', error);
+      console.error('❌ Sign in error:', error);
       isSigningIn.current = false;
     } finally {
       setLoading(false);
@@ -228,7 +238,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       setAuthError(null);
       setLoading(true);
-      console.log("Signing up with email:", email);
+      console.log("📝 Signing up with email:", email);
       
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -239,7 +249,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       if (error) {
-        console.error("Sign up error:", error);
+        console.error("❌ Sign up error:", error.message);
         setAuthError(error.message);
         
         toast({
@@ -251,14 +261,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         throw error;
       }
 
-      console.log("Sign up successful:", data);
+      console.log("✅ Sign up successful:", data);
       
       toast({
         title: "Account created!",
         description: "Please check your email for the confirmation link.",
       });
     } catch (error) {
-      console.error('Sign up error:', error);
+      console.error('❌ Sign up error:', error);
     } finally {
       setLoading(false);
     }
@@ -268,26 +278,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       setAuthError(null);
       setLoading(true);
-      console.log("Signing out...");
+      isSigningOut.current = true;
+      console.log("🚪 Signing out...");
       
       const { error } = await supabase.auth.signOut();
       
       if (error) {
-        console.error("Sign out error:", error);
+        console.error("❌ Sign out error:", error.message);
         setAuthError(error.message);
+        isSigningOut.current = false;
         throw error;
       }
       
-      console.log("Sign out successful");
+      console.log("✅ Sign out successful");
       
-      // The onAuthStateChanged will handle the navigation and state updates
+      // Auth state change listener will handle session update and navigation
       
       toast({
         title: "Signed out",
         description: "You have been successfully signed out.",
       });
     } catch (error) {
-      console.error('Sign out error:', error);
+      console.error('❌ Sign out error:', error);
+      isSigningOut.current = false;
       toast({
         title: "Error",
         description: "Failed to sign out.",

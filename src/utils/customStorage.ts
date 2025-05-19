@@ -1,238 +1,262 @@
-
 /**
- * Enhanced custom storage adapter that provides more reliable fallback when localStorage is unavailable
- * This helps the app work in environments where localStorage access is restricted (like Lovable editor)
+ * Enhanced custom storage adapter that provides reliable session token storage
+ * with multiple fallback mechanisms for different browser environments
  */
 class CustomStorageAdapter {
   private inMemoryStorage: Record<string, string> = {};
   private localStorageAvailable: boolean;
-  private readonly prefix = 'app-storage:';
-  private sessionStartTime: number;
-  private initComplete: boolean = false;
+  private sessionStorageAvailable: boolean;
+  private readonly prefix = 'app:';
+  private readonly authTokenKey: string = this.prefix + 'supabase.auth.token';
+  private initTime: number = Date.now();
 
   constructor() {
-    this.localStorageAvailable = this.checkLocalStorageAvailable();
-    this.sessionStartTime = Date.now();
-    console.log(`CustomStorageAdapter initialized, localStorage available: ${this.localStorageAvailable}, session started at: ${new Date(this.sessionStartTime).toISOString()}`);
+    // Check available storage mechanisms
+    this.localStorageAvailable = this.checkStorageAvailable('localStorage');
+    this.sessionStorageAvailable = this.checkStorageAvailable('sessionStorage');
     
-    // Load any existing session data during initialization
-    this.loadExistingSession();
-    this.initComplete = true;
+    // Log available storage methods
+    console.log(`🧰 Storage available: localStorage=${this.localStorageAvailable}, sessionStorage=${this.sessionStorageAvailable}`);
+    
+    // Initialize by loading any existing auth data
+    this.migrateExistingTokens();
   }
-
-  // Load any existing session data when the adapter initializes
-  private loadExistingSession(): void {
-    if (this.localStorageAvailable) {
-      try {
-        // Scan localStorage for our prefixed keys and load them into memory as backup
-        const authKeys = [];
-        
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith(this.prefix)) {
-            const value = localStorage.getItem(key);
-            if (value) {
-              const unprefixedKey = key.substring(this.prefix.length);
-              this.inMemoryStorage[key] = value;
-              
-              if (key.includes('auth') || key.includes('supabase')) {
-                authKeys.push(unprefixedKey);
-                console.log(`Loaded existing auth key from localStorage: ${unprefixedKey} (length: ${value.length})`);
-              }
-            }
-          }
-        }
-        
-        if (authKeys.length > 0) {
-          console.log(`Successfully loaded ${authKeys.length} auth-related keys from storage`);
-        } else {
-          console.log("No existing auth keys found in storage");
-        }
-      } catch (e) {
-        console.error('Failed to load existing session data:', e);
-      }
-    }
-  }
-
-  // Check if localStorage is available with better error detection
-  private checkLocalStorageAvailable(): boolean {
+  
+  /**
+   * Checks if a specific storage type is available and working
+   */
+  private checkStorageAvailable(type: 'localStorage' | 'sessionStorage'): boolean {
     try {
+      const storage = window[type];
       const testKey = '__storage_test__';
-      localStorage.setItem(testKey, testKey);
-      const testValue = localStorage.getItem(testKey);
-      localStorage.removeItem(testKey);
-      
-      // Verify that the test actually worked
-      if (testValue !== testKey) {
-        console.warn('localStorage test failed: values don\'t match');
-        return false;
-      }
-      
-      return true;
+      storage.setItem(testKey, testKey);
+      const result = storage.getItem(testKey);
+      storage.removeItem(testKey);
+      return result === testKey;
     } catch (e) {
-      console.warn('localStorage not available, using in-memory storage instead:', e);
       return false;
     }
   }
-
-  // Get item from storage with enhanced logging and fallback mechanisms
-  getItem(key: string): string | null {
-    const prefixedKey = this.prefix + key;
-    let value: string | null = null;
-    const isAuthKey = key.includes('auth') || key.includes('supabase');
-    
+  
+  /**
+   * Finds and consolidates any existing auth tokens from multiple storage locations
+   */
+  private migrateExistingTokens(): void {
     try {
-      // Check in-memory first for auth keys (faster and more reliable)
-      if (isAuthKey && this.inMemoryStorage[prefixedKey]) {
-        value = this.inMemoryStorage[prefixedKey];
-        console.log(`Retrieved auth key ${key} from in-memory storage (length: ${value.length})`);
-        return value;
+      // Check for tokens in various locations and formats
+      let foundToken = false;
+      
+      // Key variations to check
+      const possibleKeys = [
+        'supabase.auth.token',
+        this.authTokenKey,
+        'app-storage:supabase.auth.token'
+      ];
+      
+      // Check localStorage
+      if (this.localStorageAvailable) {
+        for (const key of possibleKeys) {
+          const value = localStorage.getItem(key);
+          if (value) {
+            console.log(`🔑 Found auth token in localStorage with key: ${key}`);
+            this.inMemoryStorage[this.authTokenKey] = value;
+            foundToken = true;
+            
+            // Also write to our standard format for future use
+            try {
+              localStorage.setItem(this.authTokenKey, value);
+            } catch (e) {
+              console.error("❌ Failed to migrate token to standard format", e);
+            }
+          }
+        }
       }
       
-      // Then try localStorage
-      if (this.localStorageAvailable) {
-        value = localStorage.getItem(prefixedKey);
-        
-        if (value !== null) {
-          // Sync to in-memory as backup
-          this.inMemoryStorage[prefixedKey] = value;
-          
-          if (isAuthKey) {
-            console.log(`Retrieved auth key ${key} from localStorage (length: ${value.length})`);
+      // Check sessionStorage as fallback
+      if (this.sessionStorageAvailable && !foundToken) {
+        for (const key of possibleKeys) {
+          const value = sessionStorage.getItem(key);
+          if (value) {
+            console.log(`🔑 Found auth token in sessionStorage with key: ${key}`);
+            this.inMemoryStorage[this.authTokenKey] = value;
+            foundToken = true;
           }
-          
+        }
+      }
+      
+      // Alert if we found a token
+      console.log(foundToken 
+        ? "✅ Successfully loaded existing auth token"
+        : "ℹ️ No existing auth token found");
+    } catch (e) {
+      console.error("❌ Error during token migration:", e);
+    }
+  }
+
+  /**
+   * Gets an item from the most reliable storage available
+   */
+  getItem(key: string): string | null {
+    const prefixedKey = this.prefix + key;
+    const isAuthToken = key.includes('auth') || key.includes('supabase');
+    
+    try {
+      // Always check memory first for auth tokens (fastest)
+      if (isAuthToken && this.inMemoryStorage[prefixedKey]) {
+        console.log(`📤 Retrieved auth token from memory (${key})`);
+        return this.inMemoryStorage[prefixedKey];
+      }
+      
+      // Then check localStorage
+      if (this.localStorageAvailable) {
+        const value = localStorage.getItem(prefixedKey);
+        if (value !== null) {
+          this.inMemoryStorage[prefixedKey] = value; // Sync to memory
+          if (isAuthToken) console.log(`📤 Retrieved auth token from localStorage (${key})`);
+          return value;
+        }
+      }
+      
+      // Try sessionStorage as fallback
+      if (this.sessionStorageAvailable) {
+        const value = sessionStorage.getItem(prefixedKey);
+        if (value !== null) {
+          this.inMemoryStorage[prefixedKey] = value; // Sync to memory
+          if (isAuthToken) console.log(`📤 Retrieved auth token from sessionStorage (${key})`);
           return value;
         }
       }
       
       // Final fallback to in-memory
-      value = this.inMemoryStorage[prefixedKey] || null;
-      
-      if (value && isAuthKey) {
-        console.log(`Retrieved auth key ${key} from in-memory fallback (length: ${value.length})`);
-      }
-      
-      return value;
+      return this.inMemoryStorage[prefixedKey] || null;
     } catch (e) {
-      console.error(`Error retrieving key ${key}:`, e);
+      console.error(`❌ Error retrieving ${key}:`, e);
       return this.inMemoryStorage[prefixedKey] || null;
     }
   }
 
-  // Set item in storage with enhanced error recovery
+  /**
+   * Stores an item in all available storage mechanisms for redundancy
+   */
   setItem(key: string, value: string): void {
     const prefixedKey = this.prefix + key;
-    const isAuthKey = key.includes('auth') || key.includes('supabase');
+    const isAuthToken = key.includes('auth') || key.includes('supabase');
     
-    // Always store in in-memory for fallback purposes
+    // Always store in memory
     this.inMemoryStorage[prefixedKey] = value;
     
-    if (isAuthKey) {
-      console.log(`Storing auth key ${key} (length: ${value.length}), uptime: ${Math.floor((Date.now() - this.sessionStartTime)/1000)}s`);
+    if (isAuthToken) {
+      console.log(`📥 Storing auth token (${key}), uptime: ${Math.round((Date.now() - this.initTime)/1000)}s`);
     }
     
+    // Try to store in localStorage
     if (this.localStorageAvailable) {
       try {
         localStorage.setItem(prefixedKey, value);
       } catch (e) {
-        console.error(`Failed to save ${key} to localStorage:`, e);
+        console.error(`❌ Failed to save ${key} to localStorage:`, e);
+        this.clearStaleData(); // Try to make space
         
-        // If localStorage is full, try to clear some space
-        if (e instanceof DOMException && (
-            e.name === 'QuotaExceededError' || 
-            e.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
-          this.clearOldItems();
-          
-          // Try again after clearing
-          try {
-            localStorage.setItem(prefixedKey, value);
-            console.log(`Successfully saved ${key} after clearing space`);
-          } catch (retryError) {
-            console.error(`Still failed to save ${key} after clearing space:`, retryError);
-          }
+        try {
+          localStorage.setItem(prefixedKey, value);
+        } catch (retryError) {
+          console.error(`❌ Still failed to save ${key} after clearing space`);
         }
+      }
+    }
+    
+    // Backup to sessionStorage
+    if (this.sessionStorageAvailable) {
+      try {
+        sessionStorage.setItem(prefixedKey, value);
+      } catch (e) {
+        console.error(`❌ Failed to save ${key} to sessionStorage:`, e);
       }
     }
   }
 
-  // Remove item from storage
+  /**
+   * Removes an item from all storage mechanisms
+   */
   removeItem(key: string): void {
     const prefixedKey = this.prefix + key;
-    const isAuthKey = key.includes('auth') || key.includes('supabase');
+    const isAuthToken = key.includes('auth') || key.includes('supabase');
     
-    if (isAuthKey) {
-      console.log(`Removing auth key ${key}`);
+    if (isAuthToken) {
+      console.log(`🗑️ Removing auth token (${key})`);
     }
     
+    // Remove from all storage mechanisms
     delete this.inMemoryStorage[prefixedKey];
     
     if (this.localStorageAvailable) {
       try {
         localStorage.removeItem(prefixedKey);
       } catch (e) {
-        console.error(`Failed to remove ${key} from localStorage:`, e);
+        console.error(`❌ Failed to remove ${key} from localStorage:`, e);
+      }
+    }
+    
+    if (this.sessionStorageAvailable) {
+      try {
+        sessionStorage.removeItem(prefixedKey);
+      } catch (e) {
+        console.error(`❌ Failed to remove ${key} from sessionStorage:`, e);
       }
     }
   }
 
-  // Clear all items from storage
+  /**
+   * Clear all items handled by this storage adapter
+   */
   clear(): void {
-    console.log('Clearing all storage');
+    console.log('🧹 Clearing all storage');
     this.inMemoryStorage = {};
     
     if (this.localStorageAvailable) {
       try {
         // Only clear our prefixed keys
-        const keysToRemove: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key?.startsWith(this.prefix)) {
-            keysToRemove.push(key);
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith(this.prefix)) {
+            localStorage.removeItem(key);
           }
-        }
-        
-        // Remove in a separate loop to avoid index shifting issues
-        keysToRemove.forEach(key => {
-          localStorage.removeItem(key);
         });
       } catch (e) {
-        console.error('Failed to clear localStorage:', e);
+        console.error('❌ Failed to clear localStorage:', e);
+      }
+    }
+    
+    if (this.sessionStorageAvailable) {
+      try {
+        Object.keys(sessionStorage).forEach(key => {
+          if (key.startsWith(this.prefix)) {
+            sessionStorage.removeItem(key);
+          }
+        });
+      } catch (e) {
+        console.error('❌ Failed to clear sessionStorage:', e);
       }
     }
   }
   
-  // Utility method to clear older items if storage is full
-  private clearOldItems(): void {
-    if (!this.localStorageAvailable) return;
-    
-    try {
-      const keysToKeep: string[] = [];
-      const keysToRemove: string[] = [];
-      
-      // Find auth-related keys to keep, and non-auth keys to potentially remove
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key?.startsWith(this.prefix)) {
-          if (key.includes('auth') || key.includes('supabase')) {
-            keysToKeep.push(key);
-          } else {
-            keysToRemove.push(key);
+  /**
+   * Cleans up non-essential data to make space for important items
+   */
+  private clearStaleData(): void {
+    if (this.localStorageAvailable) {
+      try {
+        // Keep auth tokens, remove other items with our prefix
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith(this.prefix) && 
+              !key.includes('auth') && 
+              !key.includes('supabase')) {
+            localStorage.removeItem(key);
+            console.log(`🧹 Removed non-essential item: ${key}`);
           }
-        }
+        });
+      } catch (e) {
+        console.error('❌ Error during storage cleanup:', e);
       }
-      
-      console.log(`Storage cleanup: keeping ${keysToKeep.length} auth keys, removing ${keysToRemove.length} non-auth keys`);
-      
-      // Remove non-auth keys to make space
-      keysToRemove.forEach(key => {
-        localStorage.removeItem(key);
-        // But keep them in memory
-        if (this.inMemoryStorage[key]) {
-          console.log(`Removed ${key} from localStorage but kept in memory`);
-        }
-      });
-    } catch (e) {
-      console.error('Error during storage cleanup:', e);
     }
   }
 }
