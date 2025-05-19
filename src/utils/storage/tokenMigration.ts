@@ -1,10 +1,14 @@
 /**
  * Utilities for migrating auth tokens between storage mechanisms
+ * 
+ * Note: Most functionality has been moved into CustomStorageAdapter directly.
+ * This file is kept for backward compatibility.
  */
 import { getFromStorage, setInStorage } from './browserStorage';
 
 /**
  * Find and consolidate existing auth tokens from multiple storage locations
+ * @deprecated This functionality is now built into CustomStorageAdapter
  */
 export function migrateExistingTokens(
   prefix: string,
@@ -28,7 +32,6 @@ export function migrateExistingTokens(
       for (const key of possibleKeys) {
         const value = getFromStorage('localStorage', key);
         if (value) {
-          console.log(`🔑 Found auth token in localStorage with key: ${key}`);
           inMemoryStorage[authTokenKey] = value;
           foundToken = true;
           
@@ -47,17 +50,11 @@ export function migrateExistingTokens(
       for (const key of possibleKeys) {
         const value = getFromStorage('sessionStorage', key);
         if (value) {
-          console.log(`🔑 Found auth token in sessionStorage with key: ${key}`);
           inMemoryStorage[authTokenKey] = value;
           foundToken = true;
         }
       }
     }
-    
-    // Alert if we found a token
-    console.log(foundToken 
-      ? "✅ Successfully loaded existing auth token"
-      : "ℹ️ No existing auth token found");
       
     return foundToken;
   } catch (e) {
@@ -68,6 +65,7 @@ export function migrateExistingTokens(
 
 /**
  * Cleans up non-essential data to make space for important items
+ * @deprecated This functionality is now built into CustomStorageAdapter
  */
 export function clearStaleData(
   prefix: string,
@@ -81,7 +79,6 @@ export function clearStaleData(
             !key.includes('auth') && 
             !key.includes('supabase')) {
           localStorage.removeItem(key);
-          console.log(`🧹 Removed non-essential item: ${key}`);
         }
       });
     } catch (e) {

@@ -1,12 +1,18 @@
 
 /**
- * Utility functions for browser storage
+ * Utility functions for browser storage - simplified version
+ * 
+ * This version focuses on basic storage operations with error handling
+ * and minimal complexity.
  */
 
 /**
- * Checks if a specific storage type is available and working
+ * Check if a specific storage type is available and working
+ * @deprecated Use the built-in checks in CustomStorageAdapter instead
  */
 export function isStorageAvailable(type: 'localStorage' | 'sessionStorage'): boolean {
+  if (typeof window === 'undefined') return false;
+  
   try {
     const storage = window[type];
     const testKey = '__storage_test__';
@@ -21,12 +27,13 @@ export function isStorageAvailable(type: 'localStorage' | 'sessionStorage'): boo
 
 /**
  * Get an item from the specified storage
+ * @deprecated Use CustomStorageAdapter.getItem instead
  */
 export function getFromStorage(
   type: 'localStorage' | 'sessionStorage',
   key: string
 ): string | null {
-  if (!isStorageAvailable(type)) return null;
+  if (typeof window === 'undefined') return null;
   
   try {
     return window[type].getItem(key);
@@ -38,13 +45,14 @@ export function getFromStorage(
 
 /**
  * Set an item in the specified storage
+ * @deprecated Use CustomStorageAdapter.setItem instead
  */
 export function setInStorage(
   type: 'localStorage' | 'sessionStorage',
   key: string,
   value: string
 ): boolean {
-  if (!isStorageAvailable(type)) return false;
+  if (typeof window === 'undefined') return false;
   
   try {
     window[type].setItem(key, value);
@@ -57,12 +65,13 @@ export function setInStorage(
 
 /**
  * Remove an item from the specified storage
+ * @deprecated Use CustomStorageAdapter.removeItem instead
  */
 export function removeFromStorage(
   type: 'localStorage' | 'sessionStorage',
   key: string
 ): void {
-  if (!isStorageAvailable(type)) return;
+  if (typeof window === 'undefined') return;
   
   try {
     window[type].removeItem(key);
@@ -73,17 +82,30 @@ export function removeFromStorage(
 
 /**
  * Clear items with a specific prefix from the specified storage
+ * @deprecated Use CustomStorageAdapter.clear instead
  */
 export function clearPrefixedItems(
   type: 'localStorage' | 'sessionStorage',
   prefix: string
 ): void {
-  if (!isStorageAvailable(type)) return;
+  if (typeof window === 'undefined') return;
   
   try {
-    Object.keys(window[type]).forEach(key => {
-      if (key.startsWith(prefix)) {
-        window[type].removeItem(key);
+    const keysToRemove: string[] = [];
+    const storage = window[type];
+    
+    for (let i = 0; i < storage.length; i++) {
+      const key = storage.key(i);
+      if (key && key.startsWith(prefix)) {
+        keysToRemove.push(key);
+      }
+    }
+    
+    keysToRemove.forEach(key => {
+      try {
+        storage.removeItem(key);
+      } catch (e) {
+        console.error(`❌ Error removing ${key} from ${type}:`, e);
       }
     });
   } catch (e) {

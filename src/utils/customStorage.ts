@@ -4,5 +4,9 @@
  */
 import { CustomStorageAdapter } from './storage/CustomStorageAdapter';
 
-// Export a single instance to be used throughout the app
+// Create a single instance to be used throughout the app
+// This ensures consistent storage behavior across the application
 export const customStorage = new CustomStorageAdapter();
+
+// Export the singleton instance
+export default customStorage;
