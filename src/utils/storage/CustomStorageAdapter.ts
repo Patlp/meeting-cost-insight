@@ -1,4 +1,3 @@
-
 /**
  * Enhanced custom storage adapter that provides reliable session token storage
  * with multiple fallback mechanisms for different browser environments
@@ -71,6 +70,13 @@ export class CustomStorageAdapter implements StorageAdapter {
     } catch (e) {
       console.warn('⚠️ Could not save "Remember Me" preference:', e);
     }
+  }
+  
+  /**
+   * Get the current "Remember Me" preference
+   */
+  public getRememberMe(): boolean {
+    return this.rememberMe;
   }
   
   /**
