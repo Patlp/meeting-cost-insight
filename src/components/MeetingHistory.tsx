@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -48,16 +47,66 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 
+// Sample data for preview mode
+const SAMPLE_MEETINGS: MeetingLog[] = [
+  {
+    id: '1',
+    user_id: 'preview-user-id',
+    duration: 60,
+    attendees: 8,
+    average_salary: 75000,
+    purpose: 'Weekly Team Sync',
+    worth_it: true,
+    total_cost: 576.92,
+    hourly_rate: 36.06,
+    created_at: new Date().toISOString()
+  },
+  {
+    id: '2',
+    user_id: 'preview-user-id',
+    duration: 30,
+    attendees: 4,
+    average_salary: 65000,
+    purpose: 'Project Planning',
+    worth_it: false,
+    total_cost: 125.00,
+    hourly_rate: 31.25,
+    created_at: new Date(Date.now() - 86400000).toISOString() // Yesterday
+  },
+  {
+    id: '3',
+    user_id: 'preview-user-id',
+    duration: 90,
+    attendees: 12,
+    average_salary: 85000,
+    purpose: 'Quarterly Review',
+    worth_it: null,
+    total_cost: 1230.77,
+    hourly_rate: 40.87,
+    created_at: new Date(Date.now() - 172800000).toISOString() // 2 days ago
+  }
+];
+
 const MeetingHistory: React.FC = () => {
   const { user } = useAuth();
   const [page, setPage] = React.useState(1);
   const pageSize = 5;
   const [selectedMeeting, setSelectedMeeting] = useState<MeetingLog | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const isPreviewMode = user?.id === 'preview-user-id';
 
   const fetchMeetingLogs = async (): Promise<MeetingLog[]> => {
     if (!user) return [];
 
+    // For preview mode, return sample data
+    if (isPreviewMode) {
+      // Calculate pagination for sample data
+      const startIndex = (page - 1) * pageSize;
+      const endIndex = startIndex + pageSize;
+      return SAMPLE_MEETINGS.slice(startIndex, endIndex);
+    }
+
+    // For real users, fetch from the database
     const { data, error } = await supabase
       .from('meeting_logs')
       .select('*')
@@ -88,6 +137,15 @@ const MeetingHistory: React.FC = () => {
   });
 
   const deleteMeeting = async (id: string) => {
+    // In preview mode, just show a toast message
+    if (isPreviewMode) {
+      toast({
+        title: "Preview mode",
+        description: "In preview mode, meetings cannot be deleted.",
+      });
+      return;
+    }
+    
     try {
       const { error } = await supabase
         .from('meeting_logs')
@@ -114,6 +172,12 @@ const MeetingHistory: React.FC = () => {
   const fetchTotalCount = async () => {
     if (!user) return 0;
     
+    // For preview mode, return sample data length
+    if (isPreviewMode) {
+      return SAMPLE_MEETINGS.length;
+    }
+    
+    // For real users, get count from database
     const { count, error } = await supabase
       .from('meeting_logs')
       .select('*', { count: 'exact', head: true })

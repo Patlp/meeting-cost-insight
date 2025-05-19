@@ -10,6 +10,19 @@ export const saveMeeting = async (
   userId: string
 ): Promise<boolean> => {
   try {
+    // Check if we're in preview mode with a preview user ID (not a valid UUID)
+    const isPreviewMode = userId === 'preview-user-id';
+    
+    if (isPreviewMode) {
+      // In preview mode, just show success without saving to database
+      toast({
+        title: "Preview mode",
+        description: "In preview mode, meetings are not actually saved to the database.",
+      });
+      return true;
+    }
+
+    // For real users, save to database
     const meetingLog: Omit<MeetingLog, 'id' | 'timestamp'> = {
       user_id: userId,
       duration: meetingInput.duration,
@@ -34,12 +47,12 @@ export const saveMeeting = async (
     
     return true;
   } catch (error: any) {
+    console.error('Error saving meeting:', error);
     toast({
       title: "Error saving meeting",
-      description: error.message,
+      description: error.message || "Failed to save meeting data",
       variant: "destructive",
     });
-    console.error('Error saving meeting:', error);
     return false;
   }
 };

@@ -43,25 +43,13 @@ const MeetingCalculator: React.FC = () => {
     setSaving(true);
     
     try {
-      // For preview users, just show a success message without attempting to save
-      if (user.id === 'preview-user-id') {
-        // Simulate a short delay to mimic saving
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        toast({
-          title: "Preview mode",
-          description: "In preview mode, meetings are not actually saved to the database.",
-        });
-      } else {
-        // Real user - save to database
-        const success = await saveMeeting(meetingInput, meetingCost, user.id);
-        if (success) {
+      const success = await saveMeeting(meetingInput, meetingCost, user.id);
+      
+      if (success) {
+        // Only invalidate queries for real users (not in preview mode)
+        if (user.id !== 'preview-user-id') {
           queryClient.invalidateQueries({ queryKey: ['meetings'] });
           queryClient.invalidateQueries({ queryKey: ['meetingsCount'] });
-          toast({
-            title: "Meeting saved",
-            description: "Your meeting has been saved to your history.",
-          });
         }
       }
     } catch (error) {
