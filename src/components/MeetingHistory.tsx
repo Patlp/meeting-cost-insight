@@ -1,4 +1,5 @@
-import React from 'react';
+
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -23,14 +24,36 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination';
 import { Button } from '@/components/ui/button';
-import { Trash2, Calendar } from 'lucide-react';
+import { 
+  Trash2, 
+  Calendar, 
+  Eye, 
+  Clock, 
+  Users, 
+  DollarSign, 
+  CheckCircle, 
+  XCircle,
+  HelpCircle
+} from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from '@/components/ui/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogClose
+} from '@/components/ui/dialog';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 
 const MeetingHistory: React.FC = () => {
   const { user } = useAuth();
   const [page, setPage] = React.useState(1);
   const pageSize = 5;
+  const [selectedMeeting, setSelectedMeeting] = useState<MeetingLog | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   const fetchMeetingLogs = async (): Promise<MeetingLog[]> => {
     if (!user) return [];
@@ -112,6 +135,17 @@ const MeetingHistory: React.FC = () => {
 
   const totalPages = Math.ceil(totalCount / pageSize);
 
+  const showMeetingDetails = (meeting: MeetingLog) => {
+    setSelectedMeeting(meeting);
+    setIsDetailsOpen(true);
+  };
+
+  const getWorthItStatus = (worthIt: boolean | null) => {
+    if (worthIt === true) return { icon: <CheckCircle className="h-5 w-5 text-green-500" />, label: "Yes" };
+    if (worthIt === false) return { icon: <XCircle className="h-5 w-5 text-red-500" />, label: "No" };
+    return { icon: <HelpCircle className="h-5 w-5 text-gray-400" />, label: "Not specified" };
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center p-8">
@@ -150,14 +184,14 @@ const MeetingHistory: React.FC = () => {
             <TableHead className="text-right">Attendees</TableHead>
             <TableHead className="text-right">Cost</TableHead>
             <TableHead className="text-right">Worth it?</TableHead>
-            <TableHead></TableHead>
+            <TableHead className="text-center">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {meetings.map((meeting) => (
             <TableRow key={meeting.id}>
               <TableCell>{format(new Date(meeting.created_at || meeting.timestamp || ''), 'MMM d, yyyy')}</TableCell>
-              <TableCell>{meeting.purpose || '—'}</TableCell>
+              <TableCell className="max-w-[200px] truncate">{meeting.purpose || '—'}</TableCell>
               <TableCell className="text-right">{meeting.duration} min</TableCell>
               <TableCell className="text-right">{meeting.attendees}</TableCell>
               <TableCell className="text-right font-medium">
@@ -167,13 +201,22 @@ const MeetingHistory: React.FC = () => {
                 {meeting.worth_it === true ? '✅' : meeting.worth_it === false ? '❌' : '—'}
               </TableCell>
               <TableCell className="text-right">
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  onClick={() => deleteMeeting(meeting.id as string)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="flex justify-end gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => showMeetingDetails(meeting)}
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => deleteMeeting(meeting.id as string)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}
@@ -226,6 +269,105 @@ const MeetingHistory: React.FC = () => {
           </PaginationContent>
         </Pagination>
       )}
+
+      {/* Meeting Details Dialog */}
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Meeting Details</DialogTitle>
+            <DialogDescription>
+              Full information about your meeting
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedMeeting && (
+            <div className="space-y-4">
+              <div className="flex justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Date</p>
+                  <p className="font-medium">
+                    {format(new Date(selectedMeeting.created_at || selectedMeeting.timestamp || ''), 'PPP')}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-500">Time</p>
+                  <p className="font-medium">
+                    {format(new Date(selectedMeeting.created_at || selectedMeeting.timestamp || ''), 'p')}
+                  </p>
+                </div>
+              </div>
+              
+              <Separator />
+              
+              {selectedMeeting.purpose && (
+                <div>
+                  <p className="text-sm text-gray-500">Purpose</p>
+                  <p className="font-medium">{selectedMeeting.purpose}</p>
+                </div>
+              )}
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-gray-400" />
+                  <div>
+                    <p className="text-sm text-gray-500">Duration</p>
+                    <p className="font-medium">{selectedMeeting.duration} minutes</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-gray-400" />
+                  <div>
+                    <p className="text-sm text-gray-500">Attendees</p>
+                    <p className="font-medium">{selectedMeeting.attendees} people</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-gray-400" />
+                  <div>
+                    <p className="text-sm text-gray-500">Avg. Salary</p>
+                    <p className="font-medium">{formatCurrency(selectedMeeting.average_salary)}/year</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-gray-400" />
+                  <div>
+                    <p className="text-sm text-gray-500">Hourly Rate</p>
+                    <p className="font-medium">{formatCurrency(selectedMeeting.hourly_rate)}/hour</p>
+                  </div>
+                </div>
+              </div>
+              
+              <Card className={selectedMeeting.total_cost > 1000 ? "border-red-200 bg-red-50" : ""}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xl">Total Meeting Cost</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold">{formatCurrency(selectedMeeting.total_cost)}</p>
+                </CardContent>
+              </Card>
+              
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <p className="text-sm text-gray-500">Was this meeting worth it?</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    {getWorthItStatus(selectedMeeting.worth_it).icon}
+                    <span className="font-medium">{getWorthItStatus(selectedMeeting.worth_it).label}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="pt-4 flex justify-end">
+                <DialogClose asChild>
+                  <Button variant="outline">Close</Button>
+                </DialogClose>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

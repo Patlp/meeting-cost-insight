@@ -80,7 +80,7 @@ const MeetingCalculator: React.FC = () => {
     <div className="grid gap-8 md:grid-cols-2">
       <div className="bg-white p-6 rounded-lg shadow-sm border">
         <MeetingForm onCalculate={handleCalculate} />
-        {user && meetingCost && (
+        {meetingCost && (
           <div className="mt-4">
             <Button 
               onClick={handleSave}
@@ -103,7 +103,7 @@ const MeetingCalculator: React.FC = () => {
               meetingCost={meetingCost} 
             />
             
-            {user && (
+            {meetingCost && (
               <div className="mt-6">
                 <Button 
                   onClick={handleSave}
