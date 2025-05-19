@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,11 +19,11 @@ const MeetingHistory: React.FC = () => {
   const fetchMeetingLogs = async (): Promise<MeetingLog[]> => {
     if (!user) return [];
 
-    // Fetch from the database
+    // Fetch from the database with correct typing
     const { data, error } = await supabase
       .from('meeting_logs')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', user.id as string)
       .order('created_at', { ascending: false })
       .range((page - 1) * pageSize, page * pageSize - 1);
 
@@ -37,10 +36,22 @@ const MeetingHistory: React.FC = () => {
       throw error;
     }
 
+    // Ensure we're handling the data correctly
+    if (!data) return [];
+    
     // Map the created_at field to timestamp for compatibility with our types
-    return (data || []).map(meeting => ({
-      ...meeting,
-      timestamp: meeting.created_at
+    return data.map(meeting => ({
+      id: meeting.id,
+      user_id: meeting.user_id,
+      duration: meeting.duration,
+      attendees: meeting.attendees,
+      average_salary: meeting.average_salary,
+      purpose: meeting.purpose,
+      worth_it: meeting.worth_it,
+      total_cost: meeting.total_cost,
+      hourly_rate: meeting.hourly_rate,
+      timestamp: meeting.created_at,
+      created_at: meeting.created_at
     }));
   };
 
@@ -55,7 +66,7 @@ const MeetingHistory: React.FC = () => {
       const { error } = await supabase
         .from('meeting_logs')
         .delete()
-        .eq('id', id);
+        .eq('id', id as string);
 
       if (error) throw error;
 
@@ -81,7 +92,7 @@ const MeetingHistory: React.FC = () => {
     const { count, error } = await supabase
       .from('meeting_logs')
       .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id);
+      .eq('user_id', user.id as string);
     
     if (error) {
       console.error('Error fetching meeting count:', error);

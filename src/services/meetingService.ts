@@ -1,7 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { MeetingInput, MeetingCost, MeetingLog } from '@/types/meeting';
-import { calculateMeetingCost } from '@/utils/calculateMeetingCost';
 import { toast } from '@/components/ui/use-toast';
 
 export const saveMeeting = async (
@@ -11,7 +10,8 @@ export const saveMeeting = async (
 ): Promise<boolean> => {
   try {
     // Save to database for authenticated users
-    const meetingLog: Omit<MeetingLog, 'id' | 'timestamp'> = {
+    // Create the insertion object with correct types
+    const meetingData = {
       user_id: userId,
       duration: meetingInput.duration,
       attendees: meetingInput.attendees,
@@ -24,7 +24,7 @@ export const saveMeeting = async (
 
     const { error } = await supabase
       .from('meeting_logs')
-      .insert(meetingLog);
+      .insert(meetingData);
 
     if (error) throw error;
 

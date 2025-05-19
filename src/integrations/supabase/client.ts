@@ -23,8 +23,8 @@ export const supabase = createClient<Database>(
       flowType: 'implicit',
       storageKey: 'supabase.auth.token',
       debug: true,
-      // Disable features that might cause lock errors
-      lockAcquistionTimeout: 0
+      // Disable features that might cause lock errors - fixed typo in property name
+      lockAcquisitionTimeout: 0
     },
     global: {
       headers: {
