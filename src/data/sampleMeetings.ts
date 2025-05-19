@@ -1,11 +1,12 @@
 
 import { MeetingLog } from '@/types/meeting';
 
-// Sample data for preview mode
+// Sample data for empty state examples or demo purposes
+// Not used in production, but kept for reference
 export const SAMPLE_MEETINGS: MeetingLog[] = [
   {
     id: '1',
-    user_id: 'preview-user-id',
+    user_id: '',
     duration: 60,
     attendees: 8,
     average_salary: 75000,
@@ -17,7 +18,7 @@ export const SAMPLE_MEETINGS: MeetingLog[] = [
   },
   {
     id: '2',
-    user_id: 'preview-user-id',
+    user_id: '',
     duration: 30,
     attendees: 4,
     average_salary: 65000,
@@ -29,7 +30,7 @@ export const SAMPLE_MEETINGS: MeetingLog[] = [
   },
   {
     id: '3',
-    user_id: 'preview-user-id',
+    user_id: '',
     duration: 90,
     attendees: 12,
     average_salary: 85000,

@@ -46,11 +46,8 @@ const MeetingCalculator: React.FC = () => {
       const success = await saveMeeting(meetingInput, meetingCost, user.id);
       
       if (success) {
-        // Only invalidate queries for real users (not in preview mode)
-        if (user.id !== 'preview-user-id') {
-          queryClient.invalidateQueries({ queryKey: ['meetings'] });
-          queryClient.invalidateQueries({ queryKey: ['meetingsCount'] });
-        }
+        queryClient.invalidateQueries({ queryKey: ['meetings'] });
+        queryClient.invalidateQueries({ queryKey: ['meetingsCount'] });
       }
     } catch (error) {
       console.error('Error saving meeting:', error);

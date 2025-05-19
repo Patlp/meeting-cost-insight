@@ -9,7 +9,6 @@ import MeetingHistoryTable from './MeetingHistoryTable';
 import MeetingDetailsDialog from './MeetingDetailsDialog';
 import MeetingPagination from './MeetingPagination';
 import EmptyMeetingHistory from './EmptyMeetingHistory';
-import { SAMPLE_MEETINGS } from '@/data/sampleMeetings';
 
 const MeetingHistory: React.FC = () => {
   const { user } = useAuth();
@@ -17,20 +16,11 @@ const MeetingHistory: React.FC = () => {
   const pageSize = 5;
   const [selectedMeeting, setSelectedMeeting] = useState<MeetingLog | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-  const isPreviewMode = user?.id === 'preview-user-id';
 
   const fetchMeetingLogs = async (): Promise<MeetingLog[]> => {
     if (!user) return [];
 
-    // For preview mode, return sample data
-    if (isPreviewMode) {
-      // Calculate pagination for sample data
-      const startIndex = (page - 1) * pageSize;
-      const endIndex = startIndex + pageSize;
-      return SAMPLE_MEETINGS.slice(startIndex, endIndex);
-    }
-
-    // For real users, fetch from the database
+    // Fetch from the database
     const { data, error } = await supabase
       .from('meeting_logs')
       .select('*')
@@ -61,15 +51,6 @@ const MeetingHistory: React.FC = () => {
   });
 
   const deleteMeeting = async (id: string) => {
-    // In preview mode, just show a toast message
-    if (isPreviewMode) {
-      toast({
-        title: "Preview mode",
-        description: "In preview mode, meetings cannot be deleted.",
-      });
-      return;
-    }
-    
     try {
       const { error } = await supabase
         .from('meeting_logs')
@@ -96,12 +77,7 @@ const MeetingHistory: React.FC = () => {
   const fetchTotalCount = async () => {
     if (!user) return 0;
     
-    // For preview mode, return sample data length
-    if (isPreviewMode) {
-      return SAMPLE_MEETINGS.length;
-    }
-    
-    // For real users, get count from database
+    // Get count from database
     const { count, error } = await supabase
       .from('meeting_logs')
       .select('*', { count: 'exact', head: true })
