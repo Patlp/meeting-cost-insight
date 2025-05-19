@@ -13,13 +13,14 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   loading: boolean;
   authError: string | null;
+  clearAuthError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Path logging for debugging
-  const location = usePathLogger();
+  usePathLogger();
   
   // Session management
   const { 
@@ -39,6 +40,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsSigningIn // Pass the function to control signing in state
   );
 
+  // Helper to clear auth errors
+  const clearAuthError = () => setAuthError(null);
+
   return (
     <AuthContext.Provider value={{ 
       session,
@@ -47,7 +51,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       signUp, 
       signOut, 
       loading,
-      authError
+      authError,
+      clearAuthError
     }}>
       {children}
     </AuthContext.Provider>

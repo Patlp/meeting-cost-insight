@@ -13,11 +13,40 @@ export class CustomStorageAdapter implements StorageAdapter {
   private canUseSessionStorage: boolean = false;
   private memoryOnlyMode = false;
   private storageChecked = false;
+  private preferenceKey = 'app:auth:remember_me';
+  private rememberMe = true; // Default to true, but check preference
 
   constructor(prefix: string = 'app:') {
     // Set up prefix and auth token key
     this.prefix = prefix;
     this.authTokenKey = this.prefix + 'supabase.auth.token';
+
+    // Initial memory-only mode check from restricted environments
+    if (typeof window !== 'undefined') {
+      try {
+        const isPrivateMode = !window.localStorage || !window.sessionStorage;
+        if (isPrivateMode) {
+          console.warn('🔒 Browser appears to be in private/incognito mode. Using memory-only storage.');
+          this.memoryOnlyMode = true;
+        }
+      } catch (e) {
+        console.warn('🔒 Storage access restricted. Using memory-only storage:', e);
+        this.memoryOnlyMode = true;
+      }
+    }
+    
+    // Check for Remember Me preference if we can access storage
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const savedPreference = window.localStorage.getItem(this.preferenceKey);
+        if (savedPreference !== null) {
+          this.rememberMe = savedPreference === 'true';
+          console.log(`🔒 Using saved "Remember Me" preference: ${this.rememberMe}`);
+        }
+      }
+    } catch (e) {
+      // Ignore errors checking preference, default to true
+    }
     
     // Initialize storage mode
     this.detectStorageMode();
@@ -25,7 +54,23 @@ export class CustomStorageAdapter implements StorageAdapter {
     // Initialize by migrating any existing tokens
     this.migrateExistingTokens();
     
-    console.log(`🧰 Storage adapter initialized: localStorage=${this.canUseLocalStorage}, sessionStorage=${this.canUseSessionStorage}, memory-only=${this.memoryOnlyMode}`);
+    console.log(`🧰 Storage adapter initialized: localStorage=${this.canUseLocalStorage}, sessionStorage=${this.canUseSessionStorage}, memory-only=${this.memoryOnlyMode}, remember-me=${this.rememberMe}`);
+  }
+  
+  /**
+   * Set the "Remember Me" preference
+   */
+  public setRememberMe(value: boolean): void {
+    this.rememberMe = value;
+    console.log(`🔐 "Remember Me" set to ${value}`);
+    
+    try {
+      if (typeof window !== 'undefined' && window.localStorage && this.canUseLocalStorage) {
+        window.localStorage.setItem(this.preferenceKey, String(value));
+      }
+    } catch (e) {
+      console.warn('⚠️ Could not save "Remember Me" preference:', e);
+    }
   }
   
   /**
@@ -36,33 +81,77 @@ export class CustomStorageAdapter implements StorageAdapter {
     this.storageChecked = true;
     
     try {
-      // Check for localStorage availability
-      if (typeof window !== 'undefined') {
+      // If forced memory-only mode, skip checks
+      if (this.memoryOnlyMode) {
+        console.log('🔒 Using forced memory-only mode, skipping storage checks');
+        this.canUseLocalStorage = false;
+        this.canUseSessionStorage = false;
+        return;
+      }
+      
+      // Check for localStorage availability if remember me is on
+      if (typeof window !== 'undefined' && this.rememberMe) {
         try {
           const testKey = '__storage_test__';
           window.localStorage.setItem(testKey, testKey);
           const result = window.localStorage.getItem(testKey);
           window.localStorage.removeItem(testKey);
           this.canUseLocalStorage = result === testKey;
-        } catch (e) {
+          
+          if (!this.canUseLocalStorage) {
+            console.warn('❌ localStorage not available despite Remember Me being on. Will try sessionStorage.');
+          }
+        } catch (e: any) {
           console.warn('❌ localStorage not available:', e instanceof Error ? e.message : String(e));
           this.canUseLocalStorage = false;
+          
+          if (e instanceof DOMException && (
+            // Firefox private mode issues
+            e.code === 1014 ||
+            // LockManager.request() errors
+            e.message.includes('LockManager') ||
+            e.message.includes('request()') ||
+            // Security errors
+            e.name === 'SecurityError' ||
+            e.message.includes('security') ||
+            e.message.includes('Storage')
+          )) {
+            console.warn('🔒 Detected restricted browser environment. Using memory-only mode.');
+            this.memoryOnlyMode = true;
+          }
         }
-        
-        // Check for sessionStorage availability
+      } else {
+        this.canUseLocalStorage = false; // Explicitly disable if Remember Me is off
+      }
+      
+      // Check for sessionStorage availability (always try this if localStorage fails)
+      if (typeof window !== 'undefined' && (!this.canUseLocalStorage || !this.rememberMe)) {
         try {
           const testKey = '__storage_test__';
           window.sessionStorage.setItem(testKey, testKey);
           const result = window.sessionStorage.getItem(testKey);
           window.sessionStorage.removeItem(testKey);
           this.canUseSessionStorage = result === testKey;
-        } catch (e) {
+        } catch (e: any) {
           console.warn('❌ sessionStorage not available:', e instanceof Error ? e.message : String(e));
           this.canUseSessionStorage = false;
+          
+          if (e instanceof DOMException && (
+            e.code === 1014 ||
+            e.message.includes('LockManager') ||
+            e.message.includes('request()') ||
+            e.name === 'SecurityError' ||
+            e.message.includes('security') ||
+            e.message.includes('Storage')
+          )) {
+            console.warn('🔒 Detected restricted browser environment. Using memory-only mode.');
+            this.memoryOnlyMode = true;
+          }
         }
       }
     } catch (e) {
       console.error('❌ Critical error checking storage availability:', e);
+      this.memoryOnlyMode = true;
     }
     
     // Default to memory-only mode if browser storage is unavailable
@@ -89,8 +178,8 @@ export class CustomStorageAdapter implements StorageAdapter {
       
       let foundToken = false;
       
-      // Try to find token in localStorage
-      if (this.canUseLocalStorage) {
+      // Try to find token in localStorage if Remember Me is enabled
+      if (this.canUseLocalStorage && this.rememberMe) {
         for (const key of possibleKeys) {
           try {
             const value = window.localStorage.getItem(key);
@@ -106,8 +195,8 @@ export class CustomStorageAdapter implements StorageAdapter {
         }
       }
       
-      // Try sessionStorage if no token in localStorage
-      if (!foundToken && this.canUseSessionStorage) {
+      // Try sessionStorage if no token in localStorage or Remember Me is disabled
+      if ((!foundToken || !this.rememberMe) && this.canUseSessionStorage) {
         for (const key of possibleKeys) {
           try {
             const value = window.sessionStorage.getItem(key);
@@ -146,8 +235,8 @@ export class CustomStorageAdapter implements StorageAdapter {
         return null;
       }
       
-      // Try localStorage
-      if (this.canUseLocalStorage) {
+      // Try localStorage if Remember Me is enabled
+      if (this.canUseLocalStorage && this.rememberMe) {
         try {
           const value = window.localStorage.getItem(prefixedKey);
           if (value !== null) {
@@ -155,12 +244,24 @@ export class CustomStorageAdapter implements StorageAdapter {
             if (isAuthToken) console.log(`📤 Retrieved auth token from localStorage (${key.substring(0, 15)}...)`);
             return value;
           }
-        } catch (e) {
-          // Silently fail and try next storage option
+        } catch (e: any) {
+          // Check for specific errors that suggest restricted environment
+          if (e instanceof DOMException && (
+            e.code === 1014 ||
+            e.message.includes('LockManager') ||
+            e.message.includes('request()') ||
+            e.name === 'SecurityError'
+          )) {
+            console.warn('🔒 Storage access error. Switching to memory-only mode:', e.message);
+            this.memoryOnlyMode = true;
+          } else {
+            // Silently fail and try next storage option
+            console.warn('⚠️ Error accessing localStorage:', e.message);
+          }
         }
       }
       
-      // Try sessionStorage as fallback
+      // Try sessionStorage as fallback or if Remember Me is disabled
       if (this.canUseSessionStorage) {
         try {
           const value = window.sessionStorage.getItem(prefixedKey);
@@ -169,8 +270,20 @@ export class CustomStorageAdapter implements StorageAdapter {
             if (isAuthToken) console.log(`📤 Retrieved auth token from sessionStorage (${key.substring(0, 15)}...)`);
             return value;
           }
-        } catch (e) {
-          // Silently fail and return null
+        } catch (e: any) {
+          // Check for specific errors that suggest restricted environment
+          if (e instanceof DOMException && (
+            e.code === 1014 ||
+            e.message.includes('LockManager') ||
+            e.message.includes('request()') ||
+            e.name === 'SecurityError'
+          )) {
+            console.warn('🔒 Storage access error. Switching to memory-only mode:', e.message);
+            this.memoryOnlyMode = true;
+          } else {
+            // Silently fail and return null
+            console.warn('⚠️ Error accessing sessionStorage:', e.message);
+          }
         }
       }
       
@@ -201,22 +314,43 @@ export class CustomStorageAdapter implements StorageAdapter {
         return;
       }
       
-      // Try localStorage first
-      if (this.canUseLocalStorage) {
+      // Try localStorage if Remember Me is enabled
+      if (this.canUseLocalStorage && this.rememberMe) {
         try {
           window.localStorage.setItem(prefixedKey, value);
-        } catch (e) {
-          console.warn(`⚠️ Failed to write ${key} to localStorage:`, e);
-          // No need for retry here, we'll fall back to sessionStorage
+        } catch (e: any) {
+          // Check for specific errors that suggest restricted environment
+          if (e instanceof DOMException && (
+            e.code === 1014 ||
+            e.message.includes('LockManager') ||
+            e.message.includes('request()') ||
+            e.name === 'SecurityError'
+          )) {
+            console.warn('🔒 Storage access error. Switching to memory-only mode:', e.message);
+            this.memoryOnlyMode = true;
+          } else {
+            console.warn(`⚠️ Failed to write ${key} to localStorage:`, e.message);
+          }
         }
       }
       
-      // Always try sessionStorage as backup if available
-      if (this.canUseSessionStorage) {
+      // Always try sessionStorage as backup or if Remember Me is disabled
+      if (this.canUseSessionStorage && (!this.rememberMe || !this.canUseLocalStorage)) {
         try {
           window.sessionStorage.setItem(prefixedKey, value);
-        } catch (e) {
-          console.warn(`⚠️ Failed to write ${key} to sessionStorage:`, e);
+        } catch (e: any) {
+          // Check for specific errors that suggest restricted environment
+          if (e instanceof DOMException && (
+            e.code === 1014 ||
+            e.message.includes('LockManager') ||
+            e.message.includes('request()') ||
+            e.name === 'SecurityError'
+          )) {
+            console.warn('🔒 Storage access error. Switching to memory-only mode:', e.message);
+            this.memoryOnlyMode = true;
+          } else {
+            console.warn(`⚠️ Failed to write ${key} to sessionStorage:`, e.message);
+          }
         }
       }
     } catch (e) {

@@ -1,21 +1,46 @@
 
-import React, { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Eye, EyeOff, Mail, Lock, AlertCircle } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { setRememberMe } from '@/utils/customStorage';
 
 const Auth: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const { signIn, signUp, loading, session } = useAuth();
+  const [remember, setRemember] = useState(true); // Default to remember
+  const { signIn, signUp, loading, session, authError } = useAuth();
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [activeTab, setActiveTab] = useState('signin');
+  const [displayError, setDisplayError] = useState<string | null>(null);
+  const location = useLocation();
+  
+  // Update error display when authError changes
+  useEffect(() => {
+    if (authError) {
+      setDisplayError(authError);
+    } else {
+      setDisplayError(null);
+    }
+  }, [authError]);
+  
+  // Check for specific error parameters in URL (from failed redirects)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.has('error') || params.has('error_description')) {
+      const errorMsg = params.get('error_description') || params.get('error') || 'Authentication error';
+      setDisplayError(errorMsg);
+    }
+  }, [location.search]);
 
   // Redirect if user is already logged in
   if (session) {
@@ -24,9 +49,16 @@ const Auth: React.FC = () => {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    setDisplayError(null);
     setIsSigningIn(true);
+    
+    // Update remember me preference before signing in
+    setRememberMe(remember);
+    
     try {
       await signIn(email, password);
+    } catch (err: any) {
+      setDisplayError(err.message || 'Sign in failed');
     } finally {
       setIsSigningIn(false);
     }
@@ -34,9 +66,17 @@ const Auth: React.FC = () => {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    setDisplayError(null);
     setIsSigningUp(true);
+    
+    // Update remember me preference before signing up
+    setRememberMe(remember);
+    
     try {
       await signUp(email, password);
+      setActiveTab('signin'); // Switch to sign in tab after signup
+    } catch (err: any) {
+      setDisplayError(err.message || 'Sign up failed');
     } finally {
       setIsSigningUp(false);
     }
@@ -44,6 +84,11 @@ const Auth: React.FC = () => {
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
+  };
+  
+  // Handler for remember me checkbox
+  const handleRememberChange = (checked: boolean) => {
+    setRemember(checked);
   };
 
   return (
@@ -54,6 +99,14 @@ const Auth: React.FC = () => {
           <p className="mt-2 text-gray-600">Sign in to access your account</p>
         </div>
 
+        {displayError && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{displayError}</AlertDescription>
+          </Alert>
+        )}
+
         <Card>
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl text-center">Welcome</CardTitle>
@@ -62,7 +115,7 @@ const Auth: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="signin" className="w-full">
+            <Tabs defaultValue={activeTab} value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="signin">Sign In</TabsTrigger>
                 <TabsTrigger value="signup">Sign Up</TabsTrigger>
@@ -106,7 +159,22 @@ const Auth: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                  <Button type="submit" className="w-full" disabled={isSigningIn}>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="remember" 
+                      checked={remember} 
+                      onCheckedChange={handleRememberChange}
+                    />
+                    <Label 
+                      htmlFor="remember" 
+                      className="text-sm font-medium leading-none cursor-pointer"
+                    >
+                      Remember me
+                    </Label>
+                  </div>
+                  
+                  <Button type="submit" className="w-full" disabled={isSigningIn || loading}>
                     {isSigningIn ? "Signing in..." : "Sign In"}
                   </Button>
                 </form>
@@ -150,16 +218,34 @@ const Auth: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                  <Button type="submit" className="w-full" disabled={isSigningUp}>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="remember-signup" 
+                      checked={remember} 
+                      onCheckedChange={handleRememberChange}
+                    />
+                    <Label 
+                      htmlFor="remember-signup" 
+                      className="text-sm font-medium leading-none cursor-pointer"
+                    >
+                      Remember me
+                    </Label>
+                  </div>
+                  
+                  <Button type="submit" className="w-full" disabled={isSigningUp || loading}>
                     {isSigningUp ? "Creating Account..." : "Sign Up"}
                   </Button>
                 </form>
               </TabsContent>
             </Tabs>
           </CardContent>
-          <CardFooter className="flex justify-center">
-            <p className="text-sm text-gray-500">
+          <CardFooter className="flex flex-col gap-2">
+            <p className="text-sm text-gray-500 text-center w-full">
               Secure authentication powered by Supabase
+            </p>
+            <p className="text-xs text-gray-400 text-center w-full">
+              {remember ? 'Your session will persist until you log out.' : 'Your session will end when you close the browser.'}
             </p>
           </CardFooter>
         </Card>
