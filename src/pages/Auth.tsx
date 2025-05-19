@@ -14,6 +14,8 @@ const Auth: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const { signIn, signUp, loading, session } = useAuth();
+  const [isSigningUp, setIsSigningUp] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
 
   // Redirect if user is already logged in
   if (session) {
@@ -22,12 +24,22 @@ const Auth: React.FC = () => {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    await signIn(email, password);
+    setIsSigningIn(true);
+    try {
+      await signIn(email, password);
+    } finally {
+      setIsSigningIn(false);
+    }
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    await signUp(email, password);
+    setIsSigningUp(true);
+    try {
+      await signUp(email, password);
+    } finally {
+      setIsSigningUp(false);
+    }
   };
 
   const togglePasswordVisibility = () => {
@@ -94,8 +106,8 @@ const Auth: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Signing in..." : "Sign In"}
+                  <Button type="submit" className="w-full" disabled={isSigningIn}>
+                    {isSigningIn ? "Signing in..." : "Sign In"}
                   </Button>
                 </form>
               </TabsContent>
@@ -138,8 +150,8 @@ const Auth: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Creating Account..." : "Sign Up"}
+                  <Button type="submit" className="w-full" disabled={isSigningUp}>
+                    {isSigningUp ? "Creating Account..." : "Sign Up"}
                   </Button>
                 </form>
               </TabsContent>
