@@ -73,14 +73,22 @@ export const saveMeeting = async (
         // Fall through to memory-only mode if we've exhausted retries
         console.warn('Maximum retries reached, attempting memory-only save...');
         try {
+          // Get the current session
+          const { data: sessionData } = await supabase.auth.getSession();
+          const accessToken = sessionData.session?.access_token;
+          
+          if (!accessToken) {
+            throw new Error('No access token available');
+          }
+          
           // Direct API call without using the storage mechanisms
           const memoryMeetingData = prepareMeetingData();
-          const response = await fetch(`${supabase.supabaseUrl}/rest/v1/meeting_logs`, {
+          const response = await fetch(`${supabase.getUrl()}/rest/v1/meeting_logs`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'apikey': supabase.supabaseKey,
-              'Authorization': `Bearer ${supabase.auth.session()?.access_token || ''}`
+              'apikey': supabase.getApiKey(),
+              'Authorization': `Bearer ${accessToken}`
             },
             body: JSON.stringify(memoryMeetingData)
           });
