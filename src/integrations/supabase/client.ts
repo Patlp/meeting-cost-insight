@@ -14,11 +14,11 @@ console.log("Initializing Supabase client...");
 const customStorageAdapter = {
   getItem: (key: string) => {
     const value = customStorage.getItem(key);
-    console.log(`Storage READ: ${key} = ${value ? value.substring(0, 20) + "..." : "null"}`);
+    console.log(`Storage READ: ${key} = ${value ? `${value.substring(0, 20)}... (${value.length} chars)` : "null"}`);
     return value;
   },
   setItem: (key: string, value: string) => {
-    console.log(`Storage WRITE: ${key} = ${value.substring(0, 20)}...`);
+    console.log(`Storage WRITE: ${key} = ${value.substring(0, 20)}... (${value.length} chars)`);
     customStorage.setItem(key, value);
   },
   removeItem: (key: string) => {
@@ -27,9 +27,7 @@ const customStorageAdapter = {
   }
 };
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
-
+// Export a single client instance to be used throughout the app
 export const supabase = createClient<Database>(
   SUPABASE_URL, 
   SUPABASE_PUBLISHABLE_KEY,
@@ -40,11 +38,56 @@ export const supabase = createClient<Database>(
       autoRefreshToken: true,
       detectSessionInUrl: true,
       flowType: 'implicit',
+      // Shorter timeouts for more responsive behavior
+      storageKey: 'supabase.auth.token',
+      debug: true,
+    },
+    global: {
+      headers: {
+        'X-Client-Info': 'lovable-app'
+      }
     }
   }
 );
 
 // Debug initial session
-supabase.auth.getSession().then(({ data: { session } }) => {
-  console.log("Initial session check:", session ? "Session found" : "No session");
+console.log("Checking for initial session...");
+supabase.auth.getSession().then(({ data, error }) => {
+  if (error) {
+    console.error("Error getting initial session:", error);
+    return;
+  }
+  
+  const { session } = data;
+  console.log(
+    "Initial session check:", 
+    session ? 
+      `Session found for ${session.user.email} (expires: ${new Date(session.expires_at! * 1000).toISOString()})` : 
+      "No session"
+  );
+  
+  // Check token expiration if session exists
+  if (session) {
+    const now = Math.floor(Date.now() / 1000);
+    const expiresAt = session.expires_at as number;
+    const timeLeft = expiresAt - now;
+    
+    console.log(`Session token expires in ${timeLeft} seconds (${Math.floor(timeLeft / 60)} minutes)`);
+    
+    if (timeLeft < 300) { // Less than 5 minutes left
+      console.log("Session token expires soon, refreshing...");
+      supabase.auth.refreshSession().then(({ data, error }) => {
+        if (error) {
+          console.error("Failed to refresh session:", error);
+        } else {
+          console.log("Session refreshed successfully");
+        }
+      });
+    }
+  }
+});
+
+// Set up global auth state listener
+supabase.auth.onAuthStateChange((event, newSession) => {
+  console.log(`Auth state changed: ${event}`, newSession ? `User: ${newSession.user.email}` : "No session");
 });

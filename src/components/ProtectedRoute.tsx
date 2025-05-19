@@ -8,36 +8,47 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { session, loading } = useAuth();
+  const { session, loading, authError } = useAuth();
   const location = useLocation();
   const [initialCheckComplete, setInitialCheckComplete] = useState(false);
-  const [redirecting, setRedirecting] = useState(false);
+  const [showingLoader, setShowingLoader] = useState(true);
+  const [redirectTriggered, setRedirectTriggered] = useState(false);
 
   // Debug current auth state
   useEffect(() => {
     console.log("ProtectedRoute rendering:", {
+      path: location.pathname,
       hasSession: !!session,
       authLoading: loading,
       initialCheckComplete,
-      path: location.pathname
+      authError: authError || 'none',
+      redirectTriggered
     });
-  }, [session, loading, initialCheckComplete, location]);
+  }, [session, loading, initialCheckComplete, location, authError, redirectTriggered]);
 
   // Effect to mark when initial check is complete, even if loading is stuck
   useEffect(() => {
     // Set a timeout to ensure we don't get stuck in loading state forever
     const timer = setTimeout(() => {
       if (loading) {
-        console.log("Auth check taking too long, proceeding to avoid hanging");
+        console.log("Auth check taking too long, proceeding with available information");
         setInitialCheckComplete(true);
+        setShowingLoader(false);
       }
-    }, 2000);
+    }, 1500);
 
     // If loading completes normally, mark initial check as complete
     if (!loading) {
       console.log("Auth loading complete, status:", session ? "authenticated" : "unauthenticated");
       setInitialCheckComplete(true);
+      
+      // Add a tiny delay before hiding loader for smoother transitions
+      const hideTimer = setTimeout(() => {
+        setShowingLoader(false);
+      }, 300);
+      
       clearTimeout(timer);
+      return () => clearTimeout(hideTimer);
     }
 
     return () => clearTimeout(timer);
@@ -45,25 +56,30 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
   // Handle redirecting to auth page if not authenticated
   useEffect(() => {
-    if (!loading && initialCheckComplete && !session) {
-      console.log("Not authenticated, preparing to redirect to /auth");
-      setRedirecting(true);
+    if (initialCheckComplete && !loading && !session && !redirectTriggered) {
+      console.log("Authentication required for path:", location.pathname);
+      setRedirectTriggered(true);
     }
-  }, [loading, initialCheckComplete, session]);
+  }, [initialCheckComplete, loading, session, location.pathname, redirectTriggered]);
 
-  // Show loading spinner while checking authentication and timeout hasn't occurred
-  if (loading && !initialCheckComplete) {
+  // Show loading spinner while checking authentication
+  if (showingLoader) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        <div className="ml-3">Verifying authentication...</div>
+      <div className="flex flex-col justify-center items-center min-h-screen bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+        <div className="mt-4 text-primary font-medium">Verifying authentication...</div>
+        {loading && initialCheckComplete && (
+          <div className="mt-2 text-sm text-gray-500">
+            This is taking longer than expected...
+          </div>
+        )}
       </div>
     );
   }
 
-  // If we're not loading or timeout occurred, and there's no session, redirect
-  if ((!session && initialCheckComplete) || redirecting) {
-    console.log("Redirecting to /auth from:", location.pathname);
+  // If we're redirecting, go to auth page
+  if (redirectTriggered) {
+    console.log(`Redirecting from ${location.pathname} to /auth`);
     // Redirect to the login page with the return url
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
