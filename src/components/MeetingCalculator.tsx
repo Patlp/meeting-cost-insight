@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { saveMeeting } from '@/services/meetingService';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/components/ui/use-toast';
+import { Save } from 'lucide-react';
 
 const MeetingCalculator: React.FC = () => {
   const [meetingInput, setMeetingInput] = useState<MeetingInput>({
@@ -46,6 +47,10 @@ const MeetingCalculator: React.FC = () => {
       if (success) {
         queryClient.invalidateQueries({ queryKey: ['meetings'] });
         queryClient.invalidateQueries({ queryKey: ['meetingsCount'] });
+        toast({
+          title: "Meeting saved",
+          description: "Your meeting has been saved to your history.",
+        });
       }
     } finally {
       setSaving(false);
@@ -56,28 +61,28 @@ const MeetingCalculator: React.FC = () => {
     <div className="grid gap-8 md:grid-cols-2">
       <div className="bg-white p-6 rounded-lg shadow-sm border">
         <MeetingForm onCalculate={handleCalculate} />
+        
+        {user && (
+          <div className="mt-4 flex justify-center">
+            <Button 
+              onClick={handleSave}
+              disabled={saving || !meetingCost}
+              className="w-full flex items-center justify-center gap-2"
+              variant="outline"
+            >
+              <Save className="h-4 w-4" />
+              {saving ? "Saving..." : "Save to History"}
+            </Button>
+          </div>
+        )}
       </div>
       
       <div className="bg-white p-6 rounded-lg shadow-sm border">
         {meetingCost ? (
-          <>
-            <ResultsDisplay 
-              meetingInput={meetingInput} 
-              meetingCost={meetingCost} 
-            />
-            
-            {user && (
-              <div className="mt-6 flex justify-center">
-                <Button 
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="w-full max-w-xs"
-                >
-                  {saving ? "Saving..." : "Save Meeting to History"}
-                </Button>
-              </div>
-            )}
-          </>
+          <ResultsDisplay 
+            meetingInput={meetingInput} 
+            meetingCost={meetingCost} 
+          />
         ) : (
           <div className="text-center py-12 text-gray-500">
             <p className="text-lg">Fill out the form and click "Calculate" to see the meeting cost.</p>
