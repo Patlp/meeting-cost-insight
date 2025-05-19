@@ -1,15 +1,16 @@
 
 import React from 'react';
-import { MeetingCost } from '@/types/meeting';
+import { MeetingCost, MeetingInput } from '@/types/meeting';
 import { formatCurrency } from '@/utils/calculateMeetingCost';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertTriangle } from 'lucide-react';
 
 interface ResultsDisplayProps {
-  results: MeetingCost | null;
+  results?: MeetingCost | null;
+  meetingInput?: MeetingInput;  // Add this property to fix the type error
 }
 
-const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ results }) => {
+const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ results, meetingInput }) => {
   if (!results) return null;
 
   return (

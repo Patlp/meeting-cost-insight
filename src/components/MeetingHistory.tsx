@@ -1,5 +1,4 @@
-
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -40,7 +39,7 @@ const MeetingHistory: React.FC = () => {
       .from('meeting_logs')
       .select('*')
       .eq('user_id', user.id)
-      .order('timestamp', { ascending: false })
+      .order('created_at', { ascending: false })
       .range((page - 1) * pageSize, page * pageSize - 1);
 
     if (error) {
@@ -52,7 +51,11 @@ const MeetingHistory: React.FC = () => {
       throw error;
     }
 
-    return data || [];
+    // Map the created_at field to timestamp for compatibility with our types
+    return (data || []).map(meeting => ({
+      ...meeting,
+      timestamp: meeting.created_at
+    }));
   };
 
   const { data: meetings = [], refetch, isLoading, isError } = useQuery({
@@ -153,7 +156,7 @@ const MeetingHistory: React.FC = () => {
         <TableBody>
           {meetings.map((meeting) => (
             <TableRow key={meeting.id}>
-              <TableCell>{format(new Date(meeting.timestamp), 'MMM d, yyyy')}</TableCell>
+              <TableCell>{format(new Date(meeting.created_at || meeting.timestamp || ''), 'MMM d, yyyy')}</TableCell>
               <TableCell>{meeting.purpose || '—'}</TableCell>
               <TableCell className="text-right">{meeting.duration} min</TableCell>
               <TableCell className="text-right">{meeting.attendees}</TableCell>

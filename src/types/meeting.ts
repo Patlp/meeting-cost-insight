@@ -25,5 +25,6 @@ export interface MeetingLog {
   worth_it?: boolean | null;
   total_cost: number;
   hourly_rate: number;
-  timestamp: string;
+  timestamp?: string;  // Make timestamp optional
+  created_at?: string; // Add created_at from Supabase
 }
