@@ -28,11 +28,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     loading, 
     authError,
     setLoading,
-    setAuthError
+    setAuthError,
+    setIsSigningIn
   } = useSessionManager();
   
-  // Authentication actions
-  const { signIn, signUp, signOut } = useAuthActions(setLoading, setAuthError);
+  // Authentication actions with enhanced error handling
+  const { signIn, signUp, signOut } = useAuthActions(
+    setLoading, 
+    setAuthError, 
+    setIsSigningIn // Pass the function to control signing in state
+  );
 
   return (
     <AuthContext.Provider value={{ 

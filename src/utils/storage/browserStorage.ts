@@ -2,8 +2,7 @@
 /**
  * Utility functions for browser storage - simplified version
  * 
- * This version focuses on basic storage operations with error handling
- * and minimal complexity.
+ * @deprecated Use CustomStorageAdapter methods instead
  */
 
 /**

@@ -1,3 +1,4 @@
+
 /**
  * Enhanced custom storage adapter that provides reliable session token storage
  * with multiple fallback mechanisms for different browser environments
@@ -8,17 +9,18 @@ export class CustomStorageAdapter implements StorageAdapter {
   private inMemoryStorage: Record<string, string> = {};
   private readonly prefix: string;
   private readonly authTokenKey: string;
-  private canUseLocalStorage: boolean | null = null;
-  private canUseSessionStorage: boolean | null = null;
+  private canUseLocalStorage: boolean = false;
+  private canUseSessionStorage: boolean = false;
   private memoryOnlyMode = false;
+  private storageChecked = false;
 
   constructor(prefix: string = 'app:') {
     // Set up prefix and auth token key
     this.prefix = prefix;
     this.authTokenKey = this.prefix + 'supabase.auth.token';
     
-    // Check storage once and cache the result
-    this.checkStorageAvailability();
+    // Initialize storage mode
+    this.detectStorageMode();
     
     // Initialize by migrating any existing tokens
     this.migrateExistingTokens();
@@ -27,42 +29,43 @@ export class CustomStorageAdapter implements StorageAdapter {
   }
   
   /**
-   * Check if we can use browser storage APIs
+   * Detect which storage mode we can use safely
    */
-  private checkStorageAvailability(): void {
-    try {
-      // Check localStorage
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const testKey = '__storage_test__';
-        window.localStorage.setItem(testKey, testKey);
-        const result = window.localStorage.getItem(testKey);
-        window.localStorage.removeItem(testKey);
-        this.canUseLocalStorage = result === testKey;
-      } else {
-        this.canUseLocalStorage = false;
-      }
-    } catch (e) {
-      console.warn('❌ localStorage not available:', e);
-      this.canUseLocalStorage = false;
-    }
+  private detectStorageMode(): void {
+    if (this.storageChecked) return;
+    this.storageChecked = true;
     
     try {
-      // Check sessionStorage
-      if (typeof window !== 'undefined' && window.sessionStorage) {
-        const testKey = '__storage_test__';
-        window.sessionStorage.setItem(testKey, testKey);
-        const result = window.sessionStorage.getItem(testKey);
-        window.sessionStorage.removeItem(testKey);
-        this.canUseSessionStorage = result === testKey;
-      } else {
-        this.canUseSessionStorage = false;
+      // Check for localStorage availability
+      if (typeof window !== 'undefined') {
+        try {
+          const testKey = '__storage_test__';
+          window.localStorage.setItem(testKey, testKey);
+          const result = window.localStorage.getItem(testKey);
+          window.localStorage.removeItem(testKey);
+          this.canUseLocalStorage = result === testKey;
+        } catch (e) {
+          console.warn('❌ localStorage not available:', e instanceof Error ? e.message : String(e));
+          this.canUseLocalStorage = false;
+        }
+        
+        // Check for sessionStorage availability
+        try {
+          const testKey = '__storage_test__';
+          window.sessionStorage.setItem(testKey, testKey);
+          const result = window.sessionStorage.getItem(testKey);
+          window.sessionStorage.removeItem(testKey);
+          this.canUseSessionStorage = result === testKey;
+        } catch (e) {
+          console.warn('❌ sessionStorage not available:', e instanceof Error ? e.message : String(e));
+          this.canUseSessionStorage = false;
+        }
       }
     } catch (e) {
-      console.warn('❌ sessionStorage not available:', e);
-      this.canUseSessionStorage = false;
+      console.error('❌ Critical error checking storage availability:', e);
     }
     
-    // Fall back to memory-only mode if no browser storage is available
+    // Default to memory-only mode if browser storage is unavailable
     this.memoryOnlyMode = !this.canUseLocalStorage && !this.canUseSessionStorage;
     
     if (this.memoryOnlyMode) {
@@ -74,10 +77,10 @@ export class CustomStorageAdapter implements StorageAdapter {
    * Find and migrate existing auth tokens from various storage locations
    */
   private migrateExistingTokens(): void {
-    if (this.memoryOnlyMode) return;
+    if (this.memoryOnlyMode || typeof window === 'undefined') return;
     
     try {
-      // Check various possible token locations
+      // Check possible token locations
       const possibleKeys = [
         'supabase.auth.token',
         this.authTokenKey,
@@ -86,7 +89,7 @@ export class CustomStorageAdapter implements StorageAdapter {
       
       let foundToken = false;
       
-      // Try localStorage
+      // Try to find token in localStorage
       if (this.canUseLocalStorage) {
         for (const key of possibleKeys) {
           try {
@@ -98,7 +101,7 @@ export class CustomStorageAdapter implements StorageAdapter {
               break;
             }
           } catch (e) {
-            console.warn(`Failed to read ${key} from localStorage:`, e);
+            // Silently continue if we can't read a key
           }
         }
       }
@@ -115,14 +118,10 @@ export class CustomStorageAdapter implements StorageAdapter {
               break;
             }
           } catch (e) {
-            console.warn(`Failed to read ${key} from sessionStorage:`, e);
+            // Silently continue if we can't read a key
           }
         }
       }
-      
-      console.log(foundToken 
-        ? "✅ Successfully loaded existing auth token"
-        : "ℹ️ No existing auth token found");
     } catch (e) {
       console.error("❌ Error during token migration:", e);
     }
@@ -138,12 +137,12 @@ export class CustomStorageAdapter implements StorageAdapter {
     try {
       // Always check memory first (fastest)
       if (this.inMemoryStorage[prefixedKey]) {
-        if (isAuthToken) console.log(`📤 Retrieved auth token from memory (${key})`);
+        if (isAuthToken) console.log(`📤 Retrieved auth token from memory (${key.substring(0, 15)}...)`);
         return this.inMemoryStorage[prefixedKey];
       }
       
-      // Skip browser storage in memory-only mode
-      if (this.memoryOnlyMode) {
+      // Skip browser storage in memory-only mode or if window is undefined
+      if (this.memoryOnlyMode || typeof window === 'undefined') {
         return null;
       }
       
@@ -153,11 +152,11 @@ export class CustomStorageAdapter implements StorageAdapter {
           const value = window.localStorage.getItem(prefixedKey);
           if (value !== null) {
             this.inMemoryStorage[prefixedKey] = value; // Sync to memory
-            if (isAuthToken) console.log(`📤 Retrieved auth token from localStorage (${key})`);
+            if (isAuthToken) console.log(`📤 Retrieved auth token from localStorage (${key.substring(0, 15)}...)`);
             return value;
           }
         } catch (e) {
-          console.warn(`Failed to get ${key} from localStorage:`, e);
+          // Silently fail and try next storage option
         }
       }
       
@@ -167,11 +166,11 @@ export class CustomStorageAdapter implements StorageAdapter {
           const value = window.sessionStorage.getItem(prefixedKey);
           if (value !== null) {
             this.inMemoryStorage[prefixedKey] = value; // Sync to memory
-            if (isAuthToken) console.log(`📤 Retrieved auth token from sessionStorage (${key})`);
+            if (isAuthToken) console.log(`📤 Retrieved auth token from sessionStorage (${key.substring(0, 15)}...)`);
             return value;
           }
         } catch (e) {
-          console.warn(`Failed to get ${key} from sessionStorage:`, e);
+          // Silently fail and return null
         }
       }
       
@@ -189,42 +188,40 @@ export class CustomStorageAdapter implements StorageAdapter {
     const prefixedKey = this.prefix + key;
     const isAuthToken = key.includes('auth') || key.includes('supabase');
     
-    // Always store in memory for quick access
-    this.inMemoryStorage[prefixedKey] = value;
-    
-    if (isAuthToken) {
-      console.log(`📥 Storing auth token (${key})`);
-    }
-    
-    // Skip browser storage in memory-only mode
-    if (this.memoryOnlyMode) {
-      return;
-    }
-    
-    // Try to store in localStorage (primary)
-    if (this.canUseLocalStorage) {
-      try {
-        window.localStorage.setItem(prefixedKey, value);
-      } catch (e) {
-        console.error(`❌ Failed to store ${key} in localStorage:`, e);
-        this.tryCleanupStorage();
-        
-        // Try again after cleanup
+    try {
+      // Always store in memory for quick access
+      this.inMemoryStorage[prefixedKey] = value;
+      
+      if (isAuthToken) {
+        console.log(`📥 Storing auth token (${key.substring(0, 15)}...)`);
+      }
+      
+      // Skip browser storage in memory-only mode or if window is undefined
+      if (this.memoryOnlyMode || typeof window === 'undefined') {
+        return;
+      }
+      
+      // Try localStorage first
+      if (this.canUseLocalStorage) {
         try {
           window.localStorage.setItem(prefixedKey, value);
-        } catch (retryError) {
-          console.error(`❌ Still unable to store ${key} after cleanup:`, retryError);
+        } catch (e) {
+          console.warn(`⚠️ Failed to write ${key} to localStorage:`, e);
+          // No need for retry here, we'll fall back to sessionStorage
         }
       }
-    }
-    
-    // Backup to sessionStorage
-    if (this.canUseSessionStorage) {
-      try {
-        window.sessionStorage.setItem(prefixedKey, value);
-      } catch (e) {
-        console.error(`❌ Failed to store ${key} in sessionStorage:`, e);
+      
+      // Always try sessionStorage as backup if available
+      if (this.canUseSessionStorage) {
+        try {
+          window.sessionStorage.setItem(prefixedKey, value);
+        } catch (e) {
+          console.warn(`⚠️ Failed to write ${key} to sessionStorage:`, e);
+        }
       }
+    } catch (e) {
+      console.error(`❌ Critical error storing ${key}:`, e);
+      // At this point we've already stored in memory, so the value isn't lost
     }
   }
 
@@ -236,14 +233,14 @@ export class CustomStorageAdapter implements StorageAdapter {
     const isAuthToken = key.includes('auth') || key.includes('supabase');
     
     if (isAuthToken) {
-      console.log(`🗑️ Removing auth token (${key})`);
+      console.log(`🗑️ Removing auth token (${key.substring(0, 15)}...)`);
     }
     
     // Always remove from memory
     delete this.inMemoryStorage[prefixedKey];
     
-    // Skip browser storage in memory-only mode
-    if (this.memoryOnlyMode) {
+    // Skip browser storage operations in memory-only mode or if window is undefined
+    if (this.memoryOnlyMode || typeof window === 'undefined') {
       return;
     }
     
@@ -252,7 +249,8 @@ export class CustomStorageAdapter implements StorageAdapter {
       try {
         window.localStorage.removeItem(prefixedKey);
       } catch (e) {
-        console.error(`❌ Failed to remove ${key} from localStorage:`, e);
+        // Just log and continue
+        console.warn(`⚠️ Failed to remove ${key} from localStorage:`, e);
       }
     }
     
@@ -261,7 +259,8 @@ export class CustomStorageAdapter implements StorageAdapter {
       try {
         window.sessionStorage.removeItem(prefixedKey);
       } catch (e) {
-        console.error(`❌ Failed to remove ${key} from sessionStorage:`, e);
+        // Just log and continue
+        console.warn(`⚠️ Failed to remove ${key} from sessionStorage:`, e);
       }
     }
   }
@@ -275,8 +274,8 @@ export class CustomStorageAdapter implements StorageAdapter {
     // Clear memory
     this.inMemoryStorage = {};
     
-    // Skip browser storage in memory-only mode
-    if (this.memoryOnlyMode) {
+    // Skip browser storage operations in memory-only mode or if window is undefined
+    if (this.memoryOnlyMode || typeof window === 'undefined') {
       return;
     }
     
@@ -296,7 +295,8 @@ export class CustomStorageAdapter implements StorageAdapter {
           try {
             window.localStorage.removeItem(key);
           } catch (e) {
-            console.error(`❌ Failed to remove ${key} from localStorage:`, e);
+            // Just log and continue
+            console.warn(`⚠️ Failed to remove ${key} from localStorage:`, e);
           }
         });
       } catch (e) {
@@ -320,43 +320,13 @@ export class CustomStorageAdapter implements StorageAdapter {
           try {
             window.sessionStorage.removeItem(key);
           } catch (e) {
-            console.error(`❌ Failed to remove ${key} from sessionStorage:`, e);
+            // Just log and continue
+            console.warn(`⚠️ Failed to remove ${key} from sessionStorage:`, e);
           }
         });
       } catch (e) {
         console.error('❌ Error clearing sessionStorage items:', e);
       }
-    }
-  }
-  
-  /**
-   * Cleans up non-essential data to make space for important items
-   */
-  private tryCleanupStorage(): void {
-    if (!this.canUseLocalStorage) return;
-    
-    try {
-      // Keep auth tokens, remove other items with our prefix
-      const keysToRemove: string[] = [];
-      
-      for (let i = 0; i < window.localStorage.length; i++) {
-        const key = window.localStorage.key(i);
-        if (key && key.startsWith(this.prefix) && 
-            !key.includes('auth') && !key.includes('supabase')) {
-          keysToRemove.push(key);
-        }
-      }
-      
-      keysToRemove.forEach(key => {
-        try {
-          window.localStorage.removeItem(key);
-          console.log(`🧹 Removed non-essential item: ${key}`);
-        } catch (e) {
-          // Ignore errors in cleanup
-        }
-      });
-    } catch (e) {
-      console.error('❌ Error during storage cleanup:', e);
     }
   }
 }

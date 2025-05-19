@@ -23,6 +23,8 @@ export const supabase = createClient<Database>(
       flowType: 'implicit',
       storageKey: 'supabase.auth.token',
       debug: true,
+      // Disable features that might cause lock errors
+      lockAcquistionTimeout: 0
     },
     global: {
       headers: {
@@ -32,41 +34,46 @@ export const supabase = createClient<Database>(
   }
 );
 
+// Log initialization complete
+console.log("✅ Supabase client initialized");
+
 // Verbose session debugging
-console.log("🔍 Checking initial Supabase session...");
-supabase.auth.getSession().then(({ data, error }) => {
-  if (error) {
-    console.error("❌ Error getting initial session:", error.message);
-    return;
-  }
-  
-  const { session } = data;
-  if (session) {
-    const now = Math.floor(Date.now() / 1000);
-    const expiresAt = session.expires_at as number;
-    const timeLeft = expiresAt - now;
-    
-    console.log(`✅ Session found: ${session.user.email}`);
-    console.log(`⏱️ Session expires in: ${Math.floor(timeLeft / 60)} minutes`);
-    
-    // Proactively refresh if less than 30 minutes left
-    if (timeLeft < 1800) {
-      console.log("🔄 Refreshing session token...");
-      supabase.auth.refreshSession().then(({ data, error }) => {
-        console.log(error ? "❌ Token refresh failed" : "✅ Token refreshed successfully");
-      });
+try {
+  console.log("🔍 Checking initial Supabase session...");
+  supabase.auth.getSession().then(({ data, error }) => {
+    if (error) {
+      console.error("❌ Error getting initial session:", error.message);
+      return;
     }
-  } else {
-    console.log("ℹ️ No active session found");
-  }
-});
+    
+    const { session } = data;
+    if (session) {
+      const now = Math.floor(Date.now() / 1000);
+      const expiresAt = session.expires_at as number;
+      const timeLeft = expiresAt - now;
+      
+      console.log(`✅ Session found: ${session.user.email}`);
+      console.log(`⏱️ Session expires in: ${Math.floor(timeLeft / 60)} minutes`);
+    } else {
+      console.log("ℹ️ No active session found");
+    }
+  }).catch(err => {
+    console.error("❌ Failed to check initial session:", err);
+  });
+} catch (e) {
+  console.error("❌ Critical error during session check:", e);
+}
 
 // Monitor auth state changes
-supabase.auth.onAuthStateChange((event, newSession) => {
-  console.log(`🔔 Auth state changed: ${event}`, newSession ? 
-    `User: ${newSession.user.email}` : "No session");
-  
-  if (event === 'TOKEN_REFRESHED') {
-    console.log("🔄 Auth token refreshed automatically");
-  }
-});
+try {
+  supabase.auth.onAuthStateChange((event, newSession) => {
+    console.log(`🔔 Auth state changed: ${event}`, newSession ? 
+      `User: ${newSession.user.email}` : "No session");
+    
+    if (event === 'TOKEN_REFRESHED') {
+      console.log("🔄 Auth token refreshed automatically");
+    }
+  });
+} catch (e) {
+  console.error("❌ Failed to set up auth state change listener:", e);
+}
