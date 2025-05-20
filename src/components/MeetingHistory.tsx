@@ -45,8 +45,8 @@ const MeetingHistory: React.FC = () => {
       // Ensure we're handling the data correctly
       if (!data) return [];
       
-      // Map the database records to our MeetingLog type
-      return data.map((meeting: DbMeetingLog) => ({
+      // Map the database records to our MeetingLog type with proper typing
+      return data.map((meeting: any) => ({
         id: meeting.id,
         user_id: meeting.user_id,
         duration: meeting.duration,

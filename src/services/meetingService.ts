@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { MeetingInput, MeetingCost, MeetingLog } from '@/types/meeting';
 import { toast } from '@/components/ui/use-toast';
@@ -35,7 +34,7 @@ export const saveMeeting = async (
   const attemptSave = async (): Promise<boolean> => {
     try {
       const meetingData = prepareMeetingData();
-      // Properly typed insert operation
+      // Use proper typed insert operation
       const { error } = await supabase
         .from('meeting_logs')
         .insert(meetingData);
