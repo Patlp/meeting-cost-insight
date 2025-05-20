@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -24,11 +25,12 @@ const MeetingHistory: React.FC = () => {
     if (!user) return [];
 
     try {
-      // Fix: Use proper typing for the user_id comparison
+      // Use type assertion for user.id to match expected UUID type
+      const userId = user.id;
       const { data, error } = await supabase
         .from('meeting_logs')
         .select('*')
-        .eq('user_id', user.id as string)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .range((page - 1) * pageSize, page * pageSize - 1);
 
@@ -44,9 +46,11 @@ const MeetingHistory: React.FC = () => {
       // Ensure we're handling the data correctly
       if (!data) return [];
       
-      // Fix: Properly type the data from Supabase
-      // Use explicit type assertion for safety
-      return (data as DbMeetingLog[]).map((meeting) => ({
+      // Use a more explicit two-step type assertion to avoid direct type conversion errors
+      const rawData = data as unknown;
+      const typedData = rawData as DbMeetingLog[];
+      
+      return typedData.map((meeting) => ({
         id: meeting.id,
         user_id: meeting.user_id,
         duration: meeting.duration,
@@ -73,11 +77,11 @@ const MeetingHistory: React.FC = () => {
 
   const deleteMeeting = async (id: string) => {
     try {
-      // Fix: Use proper typing for the id comparison
+      // Type assertion for the id
       const { error } = await supabase
         .from('meeting_logs')
         .delete()
-        .eq('id', id as string);
+        .eq('id', id);
 
       if (error) throw error;
 
@@ -100,11 +104,12 @@ const MeetingHistory: React.FC = () => {
     if (!user) return 0;
     
     try {
-      // Fix: Use proper typing for the user_id comparison
+      // Type assertion for user.id
+      const userId = user.id;
       const { count, error } = await supabase
         .from('meeting_logs')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id as string);
+        .eq('user_id', userId);
       
       if (error) {
         console.error('Error fetching meeting count:', error);

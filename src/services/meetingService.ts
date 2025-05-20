@@ -36,10 +36,10 @@ export const saveMeeting = async (
     try {
       const meetingData = prepareMeetingData();
       
-      // Fix: Ensure proper typing for Supabase insert
+      // Use proper type casting for insert operation
       const { error } = await supabase
         .from('meeting_logs')
-        .insert(meetingData);
+        .insert(meetingData as MeetingLogInsert);
 
       if (error) throw error;
       
