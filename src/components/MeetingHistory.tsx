@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -25,11 +24,11 @@ const MeetingHistory: React.FC = () => {
     if (!user) return [];
 
     try {
-      // Fetch from the database with correct typing
+      // Fix: Use proper typing for the user_id comparison
       const { data, error } = await supabase
         .from('meeting_logs')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', user.id as string)
         .order('created_at', { ascending: false })
         .range((page - 1) * pageSize, page * pageSize - 1);
 
@@ -45,11 +44,9 @@ const MeetingHistory: React.FC = () => {
       // Ensure we're handling the data correctly
       if (!data) return [];
       
-      // Explicitly cast data to the correct type to prevent TypeScript errors
-      const typedData = data as DbMeetingLog[];
-      
-      // Map the database records to our MeetingLog type
-      return typedData.map((meeting) => ({
+      // Fix: Properly type the data from Supabase
+      // Use explicit type assertion for safety
+      return (data as DbMeetingLog[]).map((meeting) => ({
         id: meeting.id,
         user_id: meeting.user_id,
         duration: meeting.duration,
@@ -76,10 +73,11 @@ const MeetingHistory: React.FC = () => {
 
   const deleteMeeting = async (id: string) => {
     try {
+      // Fix: Use proper typing for the id comparison
       const { error } = await supabase
         .from('meeting_logs')
         .delete()
-        .eq('id', id);
+        .eq('id', id as string);
 
       if (error) throw error;
 
@@ -102,11 +100,11 @@ const MeetingHistory: React.FC = () => {
     if (!user) return 0;
     
     try {
-      // Get count from database
+      // Fix: Use proper typing for the user_id comparison
       const { count, error } = await supabase
         .from('meeting_logs')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id);
+        .eq('user_id', user.id as string);
       
       if (error) {
         console.error('Error fetching meeting count:', error);

@@ -1,6 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { MeetingInput, MeetingCost, MeetingLog } from '@/types/meeting';
+import { MeetingInput, MeetingCost } from '@/types/meeting';
 import { toast } from '@/components/ui/use-toast';
 import { Database } from '@/integrations/supabase/types';
 
@@ -36,7 +36,7 @@ export const saveMeeting = async (
     try {
       const meetingData = prepareMeetingData();
       
-      // Use the correct typing based on the Supabase Database type
+      // Fix: Ensure proper typing for Supabase insert
       const { error } = await supabase
         .from('meeting_logs')
         .insert(meetingData);
