@@ -9,8 +9,8 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 
 // Get the current domain for redirects (use production URL if available)
 const getRedirectUrl = () => {
-  // For Lovable production deployment
-  const productionUrl = 'https://meeting-cost-insight.lovable.so';
+  // Use the TalkTax production URL
+  const productionUrl = 'https://talktax.app';
   
   // For local development fallback
   const localUrl = typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : '';
@@ -33,7 +33,7 @@ export const supabase = createClient<Database>(
       autoRefreshToken: true,
       detectSessionInUrl: true,
       flowType: 'pkce', // More secure than implicit flow
-      // Note: redirectTo is the correct property name in the latest version
+      // Note: Renamed to 'redirectTo' as per Supabase's current SDK version requirements
       redirectTo: `${getRedirectUrl()}/auth/callback`
     },
     global: {
