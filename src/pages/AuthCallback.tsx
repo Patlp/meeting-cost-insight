@@ -4,11 +4,14 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, AlertCircle } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
 
 const AuthCallback: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [verificationSuccess, setVerificationSuccess] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -39,6 +42,9 @@ const AuthCallback: React.FC = () => {
           return;
         }
 
+        // Check if this is an email verification confirmation
+        const isEmailConfirmation = params.has('type') && params.get('type') === 'signup';
+
         // Check if we're completing an OAuth or magic link flow
         if (params.has('code') || params.has('access_token') || params.has('state')) {
           try {
@@ -55,11 +61,28 @@ const AuthCallback: React.FC = () => {
             if (data?.session) {
               console.log("✅ Successfully retrieved session after redirect:", data.session.user.email);
               
-              // Short delay to ensure session is properly stored
-              setTimeout(() => {
+              // If this was an email verification, show success message
+              if (isEmailConfirmation) {
+                setVerificationSuccess(true);
+                // Show toast notification
+                toast({
+                  title: "Email Verified!",
+                  description: "Thanks for verifying your email — you're now signed in.",
+                  duration: 5000,
+                });
+                setLoading(false);
+                
+                // After a brief delay to show success message, redirect to home
+                setTimeout(() => {
+                  navigate('/', { replace: true });
+                }, 3000);
+              } else {
+                // For other auth flows, redirect immediately
                 console.log("🔀 Redirecting to home page...");
-                navigate('/', { replace: true });
-              }, 500);
+                setTimeout(() => {
+                  navigate('/', { replace: true });
+                }, 500);
+              }
             } else {
               console.warn("⚠️ No session found after redirect");
               setError("No session was created. Please try logging in again.");
@@ -103,6 +126,35 @@ const AuthCallback: React.FC = () => {
     );
   }
 
+  if (verificationSuccess) {
+    return (
+      <div className="flex flex-col justify-center items-center min-h-screen bg-gray-50 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <div className="flex items-center justify-center mb-2">
+              <CheckCircle className="h-12 w-12 text-green-500" />
+            </div>
+            <CardTitle className="text-center text-2xl">Email Verified!</CardTitle>
+            <CardDescription className="text-center">
+              Thanks for verifying your email — you're now signed in.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center text-sm text-gray-500 mb-4">
+              You'll be redirected to the dashboard automatically in a few seconds.
+            </div>
+            <Button 
+              onClick={() => navigate('/', { replace: true })}
+              className="w-full"
+            >
+              Continue to Dashboard
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen p-4">
@@ -116,7 +168,7 @@ const AuthCallback: React.FC = () => {
           <div className="text-sm text-gray-500 mb-6">
             <p className="mb-2">This could be due to:</p>
             <ul className="list-disc pl-5 space-y-1">
-              <li>An expired or invalid magic link</li>
+              <li>An expired or invalid verification link</li>
               <li>Browser privacy settings blocking cookies or storage</li>
               <li>Network connectivity issues</li>
             </ul>
