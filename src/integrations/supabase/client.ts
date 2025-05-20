@@ -33,7 +33,8 @@ export const supabase = createClient<Database>(
       autoRefreshToken: true,
       detectSessionInUrl: true,
       flowType: 'pkce', // More secure than implicit flow
-      redirect_to: `${getRedirectUrl()}/auth/callback` // Explicitly set redirect URL
+      // Use proper redirectUrl format in the options
+      redirectTo: `${getRedirectUrl()}/auth/callback`
     },
     global: {
       headers: {

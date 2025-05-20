@@ -35,6 +35,7 @@ export const saveMeeting = async (
   const attemptSave = async (): Promise<boolean> => {
     try {
       const meetingData = prepareMeetingData();
+      // Properly typed insert operation
       const { error } = await supabase
         .from('meeting_logs')
         .insert(meetingData);
@@ -85,8 +86,8 @@ export const saveMeeting = async (
           }
           
           // Extract URL and API key from the Supabase client for direct API call
-          const supabaseUrl = process.env.SUPABASE_URL || 'https://vklytnmygsdihdbxzhlf.supabase.co';
-          const supabaseKey = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrbHl0bm15Z3NkaWhkYnh6aGxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDQ3MjksImV4cCI6MjA2MzIyMDcyOX0.JWaAnm_FQ8idv8Ngbjq5n3ms4j6os6jXg4mzWBsRpno';
+          const supabaseUrl = "https://vklytnmygsdihdbxzhlf.supabase.co";
+          const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrbHl0bm15Z3NkaWhkYnh6aGxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDQ3MjksImV4cCI6MjA2MzIyMDcyOX0.JWaAnm_FQ8idv8Ngbjq5n3ms4j6os6jXg4mzWBsRpno";
           
           // Direct API call without using the storage mechanisms
           const memoryMeetingData = prepareMeetingData();
