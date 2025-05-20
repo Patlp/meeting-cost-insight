@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +23,15 @@ const Auth: React.FC = () => {
   const [activeTab, setActiveTab] = useState('signin');
   const [displayError, setDisplayError] = useState<string | null>(null);
   const location = useLocation();
+  const navigate = useNavigate();
+  
+  // Add effect to redirect after successful login
+  useEffect(() => {
+    if (!loading && session?.user) {
+      console.log("✅ Redirecting after login...");
+      navigate("/");
+    }
+  }, [session, loading, navigate]);
   
   // Update error display when authError changes
   useEffect(() => {
