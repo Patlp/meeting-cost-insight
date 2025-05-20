@@ -60,12 +60,11 @@ export function useSessionManager() {
             authError: null,
           }));
           
-          // If this is an active sign-in, navigate to home
-          if (isSigningIn.current) {
-            console.log("🔑 Active sign-in detected");
-            isSigningIn.current = false;
+          // Direct event-based login detection
+          if (event === 'SIGNED_IN' && newSession?.user) {
+            console.log("✅ User signed in:", newSession.user.email);
             
-            // Only navigate if on auth page
+            // Only navigate if currently on the /auth page
             if (location.pathname === '/auth' && !navigationInProgress.current) {
               console.log("🔀 Navigating to home page after sign-in");
               navigationInProgress.current = true;
