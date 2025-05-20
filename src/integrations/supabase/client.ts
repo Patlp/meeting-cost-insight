@@ -33,8 +33,8 @@ export const supabase = createClient<Database>(
       autoRefreshToken: true,
       detectSessionInUrl: true,
       flowType: 'pkce', // More secure than implicit flow
-      // Fix the property name to 'redirectTo' (camelCase)
-      redirectTo: `${getRedirectUrl()}/auth/callback`
+      // Use correct property name 'redirect_to' (snake_case) rather than 'redirectTo' (camelCase)
+      redirect_to: `${getRedirectUrl()}/auth/callback`
     },
     global: {
       headers: {
