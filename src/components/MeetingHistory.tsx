@@ -29,7 +29,7 @@ const MeetingHistory: React.FC = () => {
       const { data, error } = await supabase
         .from('meeting_logs')
         .select('*')
-        .eq('user_id', user.id as string)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .range((page - 1) * pageSize, page * pageSize - 1);
 
@@ -45,8 +45,11 @@ const MeetingHistory: React.FC = () => {
       // Ensure we're handling the data correctly
       if (!data) return [];
       
-      // Map the database records to our MeetingLog type with proper typing
-      return data.map((meeting) => ({
+      // Explicitly cast data to the correct type to prevent TypeScript errors
+      const typedData = data as DbMeetingLog[];
+      
+      // Map the database records to our MeetingLog type
+      return typedData.map((meeting) => ({
         id: meeting.id,
         user_id: meeting.user_id,
         duration: meeting.duration,
@@ -76,7 +79,7 @@ const MeetingHistory: React.FC = () => {
       const { error } = await supabase
         .from('meeting_logs')
         .delete()
-        .eq('id', id as string);
+        .eq('id', id);
 
       if (error) throw error;
 
@@ -103,7 +106,7 @@ const MeetingHistory: React.FC = () => {
       const { count, error } = await supabase
         .from('meeting_logs')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id as string);
+        .eq('user_id', user.id);
       
       if (error) {
         console.error('Error fetching meeting count:', error);

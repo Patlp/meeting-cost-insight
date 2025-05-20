@@ -35,10 +35,11 @@ export const saveMeeting = async (
   const attemptSave = async (): Promise<boolean> => {
     try {
       const meetingData = prepareMeetingData();
-      // Use proper typed insert operation
+      
+      // Use the correct typing based on the Supabase Database type
       const { error } = await supabase
         .from('meeting_logs')
-        .insert(meetingData as any);
+        .insert(meetingData);
 
       if (error) throw error;
       
