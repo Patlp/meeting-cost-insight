@@ -36,10 +36,10 @@ export const saveMeeting = async (
     try {
       const meetingData = prepareMeetingData();
       
-      // Use proper type casting for insert operation
+      // Direct cast to MeetingLogInsert to match Supabase's expected type
       const { error } = await supabase
         .from('meeting_logs')
-        .insert(meetingData as MeetingLogInsert);
+        .insert([meetingData]); // Note: Wrapping in array to match overload signature
 
       if (error) throw error;
       
@@ -99,7 +99,7 @@ export const saveMeeting = async (
               'apikey': supabaseKey,
               'Authorization': `Bearer ${accessToken}`
             },
-            body: JSON.stringify(memoryMeetingData)
+            body: JSON.stringify([memoryMeetingData]) // Wrap in array to match REST API expectations
           });
           
           if (!response.ok) {

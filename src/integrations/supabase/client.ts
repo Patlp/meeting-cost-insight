@@ -33,8 +33,8 @@ export const supabase = createClient<Database>(
       autoRefreshToken: true,
       detectSessionInUrl: true,
       flowType: 'pkce', // More secure than implicit flow
-      // Use redirectTo instead of redirect_to (correct property name for the SDK)
-      redirectTo: `${getRedirectUrl()}/auth/callback`
+      // Use correct property name based on Supabase SDK version
+      redirect_to: `${getRedirectUrl()}/auth/callback`
     },
     global: {
       headers: {
@@ -45,7 +45,7 @@ export const supabase = createClient<Database>(
 );
 
 // Log initialization complete
-console.log("✅ Supabase client initialized with redirectTo:", `${getRedirectUrl()}/auth/callback`);
+console.log("✅ Supabase client initialized with redirect_to:", `${getRedirectUrl()}/auth/callback`);
 
 // Update the redirect URL for authentication methods
 supabase.auth.setSession({

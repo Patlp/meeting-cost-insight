@@ -25,12 +25,11 @@ const MeetingHistory: React.FC = () => {
     if (!user) return [];
 
     try {
-      // Use type assertion for user.id to match expected UUID type
-      const userId = user.id;
+      // Strong type casting for user ID to match Supabase expectations
       const { data, error } = await supabase
         .from('meeting_logs')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .range((page - 1) * pageSize, page * pageSize - 1);
 
@@ -46,9 +45,8 @@ const MeetingHistory: React.FC = () => {
       // Ensure we're handling the data correctly
       if (!data) return [];
       
-      // Use a more explicit two-step type assertion to avoid direct type conversion errors
-      const rawData = data as unknown;
-      const typedData = rawData as DbMeetingLog[];
+      // First cast to unknown then to our expected type to avoid direct assignment errors
+      const typedData = data as unknown as DbMeetingLog[];
       
       return typedData.map((meeting) => ({
         id: meeting.id,
@@ -77,7 +75,6 @@ const MeetingHistory: React.FC = () => {
 
   const deleteMeeting = async (id: string) => {
     try {
-      // Type assertion for the id
       const { error } = await supabase
         .from('meeting_logs')
         .delete()
@@ -104,12 +101,10 @@ const MeetingHistory: React.FC = () => {
     if (!user) return 0;
     
     try {
-      // Type assertion for user.id
-      const userId = user.id;
       const { count, error } = await supabase
         .from('meeting_logs')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId);
+        .eq('user_id', user.id);
       
       if (error) {
         console.error('Error fetching meeting count:', error);
